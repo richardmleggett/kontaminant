@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+    * {
+      font-family: sans-serif;
+    }
+    
+.chart rect {
+  fill: #f4a582;
+}
+
+.chartb rect {
+  fill: #92c5de;
+}
+
+.chart text {
+  fill: black;
+  font: 10px sans-serif;
+  text-anchor: end;
+}
+
+.chartb text {
+  fill: black;
+  font: 10px sans-serif;
+  text-anchor: end;
+}
+
+
+</style>
+<h2>Kontaminant - screening progress</h1>
+<h3>Overall</h2>
+<svg class="chart"></svg>
+
+<h3>Contaminants</h2>
+<svg class="chartb"></svg>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+
+<script>
+
+function renderChart() {
+d3.select(".chart").text("");
+d3.select(".chartb").text("");
+       
+var width = 800,
+    barHeight = 20,
+    labelWidth=200;
+
+var x = d3.scale.linear()
+    .range([0, width - labelWidth]);
+
+var chart = d3.select(".chart")
+    .attr("width", width);
+
+d3.tsv("data_overall_r1.txt", type, function(error, data) {
+  x.domain([0, d3.max(data, function(d) { return d.value; })]);
+
+  chart.attr("height", barHeight * data.length);
+
+  var bar = chart.selectAll("g")
+      .data(data)
+      .enter().append("g")
+      .attr("transform", function(d, i) { return "translate("+labelWidth+"," + i * barHeight + ")"; });
+
+  bar.append("rect")
+      .attr("width", function(d) { return x(d.value); })
+      .attr("height", barHeight - 1);
+
+  bar.append("text")
+      .attr("x", -10)
+      .attr("y", barHeight / 2)
+      .attr("dy", ".35em")
+      .text(function(d) { return d.name; });
+
+  bar.append("text")
+      .attr("x", function(d) { if (x(d.value) > 30) { return x(d.value) - 3 ;  } else { return 30; } ; })
+      .attr("y", barHeight / 2)
+      .attr("dy", ".35em")
+      .text(function(d) { return d.value; });
+});
+
+var chartb = d3.select(".chartb")
+    .attr("width", width);
+
+d3.tsv("data_per_contaminant_r1.txt", type, function(error, data) {
+//  x.domain([0, d3.max(data, function(d) { return d.value; })]);
+
+  chartb.attr("height", barHeight * data.length);
+
+  var bar = chartb.selectAll("g")
+      .data(data)
+      .enter().append("g")
+      .attr("transform", function(d, i) { return "translate("+labelWidth+"," + i * barHeight + ")"; });
+
+  bar.append("rect")
+      .attr("width", function(d) { return x(d.value); })
+      .attr("height", barHeight - 1);
+
+  bar.append("text")
+      .attr("x", -10)
+      .attr("y", barHeight / 2)
+      .attr("dy", ".35em")
+      .text(function(d) { return d.name; });
+
+  bar.append("text")
+      .attr("x", function(d) { if (x(d.value) > 30) { return x(d.value) - 3 ;  } else { return 30; } ; })
+      .attr("y", barHeight / 2)
+      .attr("dy", ".35em")
+      .text(function(d) { return d.value; });
+});
+}
+
+function type(d) {
+  d.value = +d.value; // coerce to number
+  return d;
+}
+
+</script>
+
+ 
+<script>
+setInterval("renderChart()", 1000);
+</script>

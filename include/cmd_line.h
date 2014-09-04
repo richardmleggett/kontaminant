@@ -18,7 +18,7 @@ typedef struct {
     char* input_filename_one;
     char* input_filename_two;
     char* file_of_files;
-    char* progress_file;
+    char* progress_dir;
     char* contaminants;
     char* contaminant_dir;
     char* output_prefix;

@@ -40,7 +40,7 @@ void initialise_cmdline(CmdLine* c)
     c->input_filename_one = 0;
     c->input_filename_two = 0;
     c->file_of_files = 0;
-    c->progress_file = 0;
+    c->progress_dir = 0;
     c->contaminants = 0;
     c->contaminant_dir = malloc(MAX_PATH_LENGTH);
     strcpy(c->contaminant_dir, "/Users/leggettr/Documents/Projects/kscreen/contaminants");
@@ -53,7 +53,7 @@ void initialise_cmdline(CmdLine* c)
     c->output_prefix = 0;
     c->removed_prefix = 0;
     c->write_progress_file = false;
-    c->progress_delay = 10;
+    c->progress_delay = 1;
 }
 
 /*----------------------------------------------------------------------*
@@ -75,9 +75,10 @@ void usage(void)
            "    [-b | --input_two] Input R2 file.\n" \
            "    [-c | --contaminants] List of contaminants to screen/filter.\n" \
            "    [-d | --contaminant_dir] Contaminant library directory.\n" \
+           "    [-g | --file_format] File format FASTA or FASTQ (default FASTQ).\n" \
            "    [-k | --kmer_size] Kmer size (default 21).\n" \
            "    [-o | --output_prefix] Output prefix (filtering only).\n" \
-           "    [-p | --progress_file] Name of progress file (.html) for streaming updates.\n"
+           "    [-p | --progress] Name of directory for streaming progress page.\n"
            "    [-r | --removed_prefix] Removed reads prefix (filtering only).\n" \
            "    [-t | --threshold] Kmer threshold (default 10).\n" \
            "    [-x | --keep_contaminated_reads] Save contaminated reads into separate file.\n" \
@@ -102,11 +103,12 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"contaminants", required_argument, NULL, 'c'},
         {"contaminant_dir", required_argument, NULL, 'd'},
         {"filter", no_argument, NULL, 'f'},
+        {"file_format", required_argument, NULL, 'g'},
         {"help", no_argument, NULL, 'h'},
         {"index", no_argument, NULL, 'i'},
         {"kmer_size", required_argument, NULL, 'k'},
         {"output_prefix", required_argument, NULL, 'o'},
-        {"progress_file", required_argument, NULL, 'p'},
+        {"progress", required_argument, NULL, 'p'},
         {"removed_prefix", required_argument, NULL, 'r'},
         {"screen", no_argument, NULL, 's'},
         {"threshold", required_argument, NULL, 't'},
@@ -123,7 +125,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "a:b:c:d:fhik:so:r:t:xyz:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "a:b:c:d:fg:hik:so:p:r:t:xyz:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case 'a':
@@ -167,7 +169,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                 break;
             case 'd':
                 if (optarg==NULL) {
-                    printf("Error: [-c | --contaminant_dir] option requires an argument.\n");
+                    printf("Error: [-d | --contaminant_dir] option requires an argument.\n");
                     exit(1);
                 }
                 c->contaminant_dir = malloc(strlen(optarg) + 1);
@@ -183,6 +185,20 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     c->run_type = DO_FILTER;
                 } else {
                     printf("Error: You must specify either screening, filtering or indexing.\n");
+                    exit(1);
+                }
+                break;
+            case 'g':
+                if (optarg==NULL) {
+                    printf("Error: [-g | --file_format] option requires an argument FASTA or FASTQ.\n");
+                    exit(1);
+                }
+                if (strcmp(optarg, "FASTA") == 0) {
+                    c->format = FASTA;
+                } else if (strcmp(optarg, "FASTQ") == 0) {
+                    c->format = FASTQ;
+                } else {
+                    printf("Error: [-g | --file_format] option requires an argument FASTA or FASTQ.\n");
                     exit(1);
                 }
                 break;
@@ -223,9 +239,9 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     printf("Error: [-p | --progress_file] option requires an argument.\n");
                     exit(1);
                 }
-                c->progress_file = malloc(strlen(optarg) + 1);
-                if (c->progress_file) {
-                    strcpy(c->progress_file, optarg);
+                c->progress_dir = malloc(strlen(optarg) + 1);
+                if (c->progress_dir) {
+                    strcpy(c->progress_dir, optarg);
                 } else {
                     printf("Error: can't allocate memory for string.\n");
                     exit(1);

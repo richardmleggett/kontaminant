@@ -217,6 +217,8 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
     KmerFileReaderWrapperArgs* frw;
     KmerSlidingWindowSet* windows;
     KmerStatsReadCounts tmp_stats;
+    time_t time_previous = 0;
+    time_t time_now = 0;
 
     assert(fra != NULL);
     assert(fra->KmerHash != NULL);
@@ -256,6 +258,18 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
         }
         
         prev_full_entry = frw->full_entry;
+        
+        if (cmd_line->write_progress_file) {
+            time(&time_now);
+            if (difftime(time_now, time_previous) > cmd_line->progress_delay) {
+                kmer_stats_write_progress(stats, cmd_line);
+                time_previous = time_now;
+            }
+        }
+    }
+
+    if (cmd_line->write_progress_file) {
+        kmer_stats_write_progress(stats, cmd_line);
     }
     
     free_sequence(&frw->seq);
@@ -315,7 +329,7 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
         if (fra[i]->removed_filename) {
             frw[i]->removed_fp = fopen(fra[i]->removed_filename, "w");
             if (!frw[i]->removed_fp) {
-                printf("Error: can't open output file %s\n", fra[i]->removed_filename);
+                printf("Error: can't open removed output file %s\n", fra[i]->removed_filename);
                 exit(3);
             }
         }

@@ -284,9 +284,10 @@ void kmer_stats_report_read_stats(KmerStats* stats, KmerStatsReadCounts* read)
     
     printf("\nPer-contaminant statistics\n\n");
     
-    printf("    Contaminant     nKmers     kFound    %%kFound   ReadsW1k  %%ReadsW1k    UniqW1k   %%UniqW1k   ReadsWnk  %%ReadsWnk    UniqWnk   %%UniqWnk\n");
+    printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%%kFound", "ReadsW1k", "%%ReadsW1k", "UniqW1k", "%%UniqW1k", "ReadsWnk", "%%ReadsWnk", "UniqWnk", "%%UniqWnk");
+           
     for (i=0; i<stats->n_contaminants; i++) {
-        printf("%15s %10d %10d %10.2f %10d %10.2f %10d %10.2f %10d %10.2f %10d %10.2f\n",
+        printf("%-30s %-10d %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f\n",
                stats->contaminant_ids[i],
                stats->contaminant_kmers[i],
                read->contaminant_kmers_seen[i],
@@ -325,10 +326,11 @@ void kmer_stats_report_both_stats(KmerStats* stats)
     printf("      %% of pairs with %d+ kmer contamination in both: %.2f\n", stats->kmer_threshold, stats->both_reads->both_kn_contaminaned_reads_pc);
     
     printf("\nPer-contaminant statistics\n\n");
+
+    printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%%kFound", "ReadsW1k", "%%ReadsW1k", "UniqW1k", "%%UniqW1k", "ReadsWnk", "%%ReadsWnk", "UniqWnk", "%%UniqWnk");
     
-    printf("    Contaminant     nKmers     kFound    %%kFound   ReadsW1k  %%ReadsW1k    UniqW1k   %%UniqW1k   ReadsWnk  %%ReadsWnk    UniqWnk   %%UniqWnk\n");
     for (i=0; i<stats->n_contaminants; i++) {
-        printf("%15s %10d %10d %10.2f %10d %10.2f %10d %10.2f %10d %10.2f %10d %10.2f\n",
+        printf("%-30s %-10d -%10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f\n",
                stats->contaminant_ids[i],
                stats->contaminant_kmers[i],
                stats->both_reads->contaminant_kmers_seen[i],
@@ -476,4 +478,46 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
     }
 
     fclose(fp_abs);
+}
+
+void kmer_stats_write_progress(KmerStats* stats, CmdLine* cmd_line)
+{
+    char* filename;
+    FILE* fp;
+    int r;
+    
+    printf("Updating...\n");
+    
+    filename = malloc(strlen(cmd_line->progress_dir) + 64);
+    if (!filename) {
+        printf("Error: no room for filename\n");
+        exit(1);
+    }
+    
+    for (r=0; r<stats->number_of_files; r++) {
+        sprintf(filename, "%s/data_overall_r%d.txt", cmd_line->progress_dir, r+1);
+        fp = fopen(filename, "w");
+        if (fp) {
+            fprintf(fp, "name\tvalue\n");
+            fprintf(fp, "Number of reads\t%d\n", stats->read[r]->number_of_reads);
+            fprintf(fp, "Number with k1 contaminants\t%d\n", stats->read[r]->k1_contaminated_reads);
+            fprintf(fp, "Number with k%d contaminants\t%d\n", stats->kmer_threshold, stats->read[r]->kn_contaminated_reads);
+            fclose(fp);
+        } else {
+            printf("Error: can't open %s\n", filename);
+        }
+
+        sprintf(filename, "%s/data_per_contaminant_r%d.txt", cmd_line->progress_dir, r+1);
+        fp = fopen(filename, "w");
+        if (fp) {
+            int i;
+            fprintf(fp, "name\tvalue\n");
+            for (i=0; i<stats->n_contaminants; i++) {
+                fprintf(fp, "%s\t%d\n", stats->contaminant_ids[i], stats->read[r]->kn_contaminated_reads_by_contaminant[i]);
+            }
+            fclose(fp);
+        } else {
+            printf("Error: can't open %s\n", filename);
+        }
+    }
 }
