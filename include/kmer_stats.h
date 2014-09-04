@@ -78,4 +78,4 @@ void kmer_stats_calculate(KmerStats* stats);
 void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCounts* both_stats);
 void update_stats_for_both(KmerStats* stats, KmerStatsReadCounts* both_stats);
 void kmer_stats_report_to_screen(KmerStats* stats);
-void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats);
+void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, CmdLine* cmd_line);

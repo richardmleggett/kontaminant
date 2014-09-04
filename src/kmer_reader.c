@@ -408,9 +408,9 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
             }
         }
 
-        if (fra_1->cmd_line->write_progress_file) {
-            printf("Blob");
-        }
+        //if (fra_1->cmd_line->write_progress_file) {
+        //    printf("Blob");
+        //}
     }
     
     for (i=0; i<number_of_files; i++) {

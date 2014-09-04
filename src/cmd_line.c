@@ -32,7 +32,7 @@
  *----------------------------------------------------------------------*/
 void initialise_cmdline(CmdLine* c)
 {
-    c->bucket_bits = 16;
+    c->bucket_bits = 20;
     c->bucket_size = 100;
     c->run_type = 0;
     c->kmer_size = 21;

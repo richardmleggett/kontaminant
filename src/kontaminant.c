@@ -320,7 +320,7 @@ int main(int argc, char* argv[])
         printf("\n");
         hash_table_print_stats(contaminant_hash);
         
-        kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats);
+        kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats, &cmdline);
         
         process_files(contaminant_hash, &kmer_stats, &cmdline);
 

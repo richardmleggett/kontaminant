@@ -385,9 +385,13 @@ void kmer_stats_report_to_screen(KmerStats* stats)
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats)
+void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, CmdLine* cmd_line)
 {
     int i, j;
+    FILE* fp_abs;
+    FILE* fp_pc;
+    char* filename_abs;
+    char* filename_pc;
     
     if (stats->n_contaminants < 2) {
         return;
@@ -395,6 +399,32 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats)
     
     printf("\nComparing contaminant kmers...\n");
     
+    filename_abs = malloc(strlen(cmd_line->output_prefix)+32);
+    if (!filename_abs) {
+        printf("Error: No room to store filename!\n");
+        exit(1);
+    }
+    sprintf(filename_abs, "%skmer_similarity_absolute.txt", cmd_line->output_prefix);
+
+    filename_pc = malloc(strlen(cmd_line->output_prefix)+32);
+    if (!filename_pc) {
+        printf("Error: No room to store filename!\n");
+        exit(1);
+    }
+    sprintf(filename_pc, "%skmer_similarity_pc.txt", cmd_line->output_prefix);
+
+    fp_abs = fopen(filename_abs, "w");
+    if (!fp_abs) {
+        printf("Error: can't open %s\n", filename_abs);
+        exit(1);
+    }
+
+    fp_pc = fopen(filename_pc, "w");
+    if (!fp_pc) {
+        printf("Error: can't open %s\n", filename_pc);
+        exit(1);
+    }
+
     void check_kmer(Element* node) {
         int i, j;
         for (i=0; i<(stats->n_contaminants); i++) {
@@ -414,16 +444,36 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats)
     hash_table_traverse(&check_kmer, hash);
     
     printf("\n%15s ", "");
+    fprintf(fp_abs, "Contaminant");
+    fprintf(fp_pc, "Contaminant");
     for (i=0; i<stats->n_contaminants; i++) {
         printf(" %15s", stats->contaminant_ids[i]);
+        fprintf(fp_abs, "\t%s", stats->contaminant_ids[i]);
+        fprintf(fp_pc, "\t%s", stats->contaminant_ids[i]);
     }
     printf("\n");
+    fprintf(fp_abs, "\n");
+    fprintf(fp_pc, "\n");
     
     for (i=0; i<stats->n_contaminants; i++) {
         printf("%15s", stats->contaminant_ids[i]);
+        fprintf(fp_abs, "%s", stats->contaminant_ids[i]);
+        fprintf(fp_pc, "%s", stats->contaminant_ids[i]);
         for (j=0; j<stats->n_contaminants; j++) {
+            double pc = 0;
             printf(" %15d", stats->kmers_in_common[i][j]);
+            fprintf(fp_abs, "\t%d", stats->kmers_in_common[i][j]);
+
+            if (stats->kmers_in_common[i][j] > 0) {
+                pc = (100.0 * (double)stats->kmers_in_common[i][j]) / (double)stats->contaminant_kmers[i];
+            }
+
+            fprintf(fp_pc, "\t%.2f", pc);
         }
         printf("\n");
+        fprintf(fp_abs, "\n");
+        fprintf(fp_pc, "\n");
     }
+
+    fclose(fp_abs);
 }
