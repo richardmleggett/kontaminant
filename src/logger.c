@@ -65,12 +65,19 @@ int log_start(char* filename)
 
 	if (!filename) {
 		rc = 0;
-	} else {	
-		log_filename = filename;
+	} else {
+        log_filename = malloc(strlen(filename) + 1);
+        if (!log_filename) {
+            printf("Error: can't get filename memory\n");
+            exit(1);
+        }
+ 
+		strcpy(log_filename, filename);
 		fp = fopen(log_filename, "w");
 
 		if (fp) {
 			char timestring[64];
+            printf("Opened log %s\n", log_filename);
 			log_get_timestamp(timestring);
 			fprintf(fp, "%s Log started\n", timestring);
 			fclose(fp);
@@ -97,6 +104,7 @@ void log_printf(char* fmt, ...)
 	if (log_filename) {
 		FILE *fp = fopen(log_filename, "a");
 		if (fp) {
+            printf("Opened log %s\n", log_filename);
 			va_start(args, fmt);
 			vfprintf(fp, fmt, args);
             fclose(fp);
@@ -119,6 +127,7 @@ void log_and_screen_printf(char* fmt, ...)
 	if (log_filename) {
 		FILE *fp = fopen(log_filename, "a");
 		if (fp) {
+            printf("Opened log %s\n", log_filename);
 			va_start(args, fmt);
 			vfprintf(fp, fmt, args);
             fclose(fp);

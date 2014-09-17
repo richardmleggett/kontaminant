@@ -323,6 +323,8 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
             if (!frw[i]->output_fp) {
                 printf("Error: can't open output file %s\n", fra[i]->output_filename);
                 exit(3);
+            } else {
+                printf("Opened output %s\n", fra[i]->output_filename);
             }
         }
 
@@ -331,6 +333,8 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
             if (!frw[i]->removed_fp) {
                 printf("Error: can't open removed output file %s\n", fra[i]->removed_filename);
                 exit(3);
+            } else {
+                printf("Opened removed %s\n", fra[i]->removed_filename);
             }
         }
 
@@ -425,6 +429,7 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
         //if (fra_1->cmd_line->write_progress_file) {
         //    printf("Blob");
         //}
+        free(stats_both_reads);
     }
     
     for (i=0; i<number_of_files; i++) {

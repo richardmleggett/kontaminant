@@ -37,7 +37,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.1"
+#define VERSION "2.0.1g"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -96,13 +96,13 @@ int strcmp_i(char* a, char* b)
 HashTable* create_hash_table(CmdLine* cmdline, int kmer_size)
 {
     HashTable* hash;
-    int entries = pow(2.0, (double)cmdline->bucket_bits)*cmdline->bucket_size;
+    long int entries = pow(2.0, (double)cmdline->bucket_bits)*cmdline->bucket_size;
     long int memory = entries*sizeof(Element);
 
     printf("Creating hash table for kmer storage...\n");
     printf("                n: %d\n", cmdline->bucket_bits);
     printf("                b: %d\n", cmdline->bucket_size);
-    printf("          Entries: %d\n", entries);
+    printf("          Entries: %ld\n", entries);
     printf("       Entry size: %ld\n", sizeof(Element));
     printf("  Memory required: %ld MB\n\n", memory/(1024*1024));
     
@@ -198,10 +198,18 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
             }
 
             fra[i]->output_filename = malloc(strlen(filenames[i]) + strlen(cmdline->output_prefix) + 1);
-            fra[i]->removed_filename = malloc(strlen(filenames[i]) + strlen(cmdline->output_prefix) + 1);
-            if ((!fra[i]->output_filename) || (!fra[i]->removed_filename)) {
+            if (!fra[i]->output_filename) {
                 printf("Error: Can't get memory for output filenames\n");
                 exit(3);
+            }
+
+            if (cmdline->removed_prefix) {
+                fra[i]->removed_filename = malloc(strlen(filenames[i]) + strlen(cmdline->output_prefix) + 1); 
+
+                if (!fra[i]->removed_filename) {
+                    printf("Error: Can't get memory for output filenames\n");
+                    exit(3);
+                }
             }
             
             fra[i]->bad_reads = 0;
@@ -215,10 +223,10 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
             fra[i]->maximum_ocupancy = 75;
             fra[i]->KmerHash = contaminant_hash;
         
-            if (cmdline->output_prefix) {
+            if (fra[i]->output_filename) {
                 sprintf(fra[i]->output_filename, "%s%s", cmdline->output_prefix, get_leafname(filenames[i]));
             }
-            if (cmdline->removed_prefix) {
+            if (fra[i]->removed_filename) {
                 sprintf(fra[i]->removed_filename, "%s%s", cmdline->removed_prefix, get_leafname(filenames[i]));
             }
         } else {
@@ -319,13 +327,24 @@ int main(int argc, char* argv[])
                 
         printf("\n");
         hash_table_print_stats(contaminant_hash);
+
+printf("About to compare kmers...\n");
         
         kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats, &cmdline);
         
+printf("About to process files...\n");
+
         process_files(contaminant_hash, &kmer_stats, &cmdline);
 
+ printf("About to calculate stats...\n");
+
         kmer_stats_calculate(&kmer_stats);
+
+printf("About to report stats to screen...\n");
+
         kmer_stats_report_to_screen(&kmer_stats);
+
+printf("Done\n");
     }
     
     time(&end);
