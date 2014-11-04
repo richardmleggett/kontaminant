@@ -47,13 +47,16 @@ void initialise_cmdline(CmdLine* c)
     c->output_prefix = 0;
     c->subsample_ratio = 0.1;
     c->quality_score_offset = 33;
+    c->quality_score_threshold = 0;
     c->format = FASTQ;
     c->max_read_length = 1000;
     c->kmer_threshold = 10;
     c->output_prefix = 0;
     c->removed_prefix = 0;
     c->write_progress_file = false;
-    c->progress_delay = 1;
+    c->progress_delay = 60;
+    c->filter_any_threshold = 1;
+    c->filter_unique_threshold = 0;
 }
 
 /*----------------------------------------------------------------------*
@@ -71,8 +74,10 @@ void usage(void)
            "    [-f | --filter] invokes filtering.\n" \
            "    [-i | --index] indexes a references.\n" \
            "\nOptions:\n" \
-           "    [-a | --input_one] Input R1 file.\n" \
-           "    [-b | --input_two] Input R2 file.\n" \
+           "    [-1 | --input_one] Input R1 file (or reference FASTA).\n" \
+           "    [-2 | --input_two] Input R2 file.\n" \
+           "    [-b | --mem_width] Size of hash table buckets (default 100).\n" \
+           "    [-n | --mem_height] Number of buckets in hash table in bits (default 20, this is a power of 2, ie 2^mem_height).\n" \
            "    [-c | --contaminants] List of contaminants to screen/filter.\n" \
            "    [-d | --contaminant_dir] Contaminant library directory.\n" \
            "    [-g | --file_format] File format FASTA or FASTQ (default FASTQ).\n" \
@@ -98,8 +103,9 @@ void usage(void)
 void parse_command_line(int argc, char* argv[], CmdLine* c)
 {
     static struct option long_options[] = {
-        {"input_one", required_argument, NULL, 'a'},
-        {"input_two", required_argument, NULL, 'b'},
+        {"input_one", required_argument, NULL, '1'},
+        {"input_two", required_argument, NULL, '2'},
+        {"mem_width", required_argument, NULL, 'b'},
         {"contaminants", required_argument, NULL, 'c'},
         {"contaminant_dir", required_argument, NULL, 'd'},
         {"filter", no_argument, NULL, 'f'},
@@ -107,6 +113,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"help", no_argument, NULL, 'h'},
         {"index", no_argument, NULL, 'i'},
         {"kmer_size", required_argument, NULL, 'k'},
+        {"mem_height", required_argument, NULL, 'n'},
         {"output_prefix", required_argument, NULL, 'o'},
         {"progress", required_argument, NULL, 'p'},
         {"removed_prefix", required_argument, NULL, 'r'},
@@ -125,10 +132,10 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "a:b:c:d:fg:hik:so:p:r:t:xyz:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:fg:hik:n:so:p:r:t:xyz:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
-            case 'a':
+            case '1':
                 if (optarg==NULL) {
                     printf("Error: [-a | --input] option requires an argument.\n");
                     exit(1);
@@ -141,7 +148,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     exit(1);
                 }
                 break;
-            case 'b':
+            case '2':
                 if (optarg==NULL) {
                     printf("Error: [-b | --input] option requires an argument.\n");
                     exit(1);
@@ -151,6 +158,17 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     strcpy(c->input_filename_two, optarg);
                 } else {
                     printf("Error: can't allocate memory for string.\n");
+                    exit(1);
+                }
+                break;
+            case 'b':
+                if (optarg == NULL) {
+                    printf("[-b | --mem_width] option requires int argument [hash table bucket size]");
+                    exit(1);
+                }
+                c->bucket_size = atoi(optarg);
+                if (c->bucket_size == 0 || c->bucket_size > 100000) {
+                    printf("[-b | --mem_width] option requires 'short' argument bigger than 0");
                     exit(1);
                 }
                 break;
@@ -220,6 +238,13 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     exit(1);
                 }
                 c->kmer_size = atoi(optarg);
+                break;
+            case 'n':
+                if (optarg == NULL) {
+                    printf("[-n | --mem_height] option requires int argument [hash table number of buckets in bits]");
+                    exit(1);
+                }
+                c->bucket_bits = atoi(optarg);
                 break;
             case 'o':
                 if (optarg==NULL) {
@@ -322,7 +347,6 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(1);
     }
     
-    
     if ((c->run_type == DO_SCREEN) || (c->run_type == DO_FILTER)) {
         if (c->contaminants == 0) {
             printf("Error: you must specify a contaminant list\n");
@@ -330,7 +354,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         }
     }
     
-    if ((c->run_type != DO_SCREEN) && (c->output_prefix == 0)) {
+    if ((c->run_type == DO_FILTER) && (c->output_prefix == 0)) {
         printf("Error: you must specify an output prefix\n");
         exit(1);
     }

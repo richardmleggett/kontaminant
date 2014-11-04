@@ -62,3 +62,4 @@ void element_set_contaminant_bit(Element* e, int id);
 uint32_t element_get_contaminant_bit(Element* e, int id);
 Key element_get_key(BinaryKmer * kmer, short kmer_size, Key preallocated_key);
 BinaryKmer *element_get_kmer(Element * e);
+void db_node_print_binary(FILE * fp, Element* node, int kmer_size);

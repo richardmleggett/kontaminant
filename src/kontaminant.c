@@ -33,11 +33,12 @@
 #include "cmd_line.h"
 #include "kmer_stats.h"
 #include "kmer_reader.h"
+#include "kmer_build.h"
 
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.1g"
+#define VERSION "2.0.2"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -264,7 +265,7 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
             exit(3);
         }
     } else if (cmdline->format == FASTQ) {
-        screen_or_filter_paired_end(fra[0], fra[1], kmer_stats);
+        screen_or_filter_paired_end(cmdline, fra[0], fra[1], kmer_stats);
     } else {
         printf("Error: Format not supported.\n");
     }
@@ -322,29 +323,31 @@ int main(int argc, char* argv[])
     kmer_stats_initialise(&kmer_stats, &cmdline);
     contaminant_hash = create_hash_table(&cmdline, cmdline.kmer_size);
 
-    if ((cmdline.run_type == DO_SCREEN) || (cmdline.run_type == DO_FILTER)) {
+    if ((cmdline.run_type == DO_INDEX)) {
+        // Index file
+        load_reads_into_table(&cmdline, contaminant_hash);
+        printf("\n");
+        hash_table_print_stats(contaminant_hash);
+        dump_kmer_hash(&cmdline, contaminant_hash);
+    } else if ((cmdline.run_type == DO_SCREEN) || (cmdline.run_type == DO_FILTER)) {
         load_contamints(contaminant_hash, &kmer_stats, &cmdline);
                 
         printf("\n");
         hash_table_print_stats(contaminant_hash);
 
-printf("About to compare kmers...\n");
-        
+        printf("About to compare kmers...\n");
         kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats, &cmdline);
         
-printf("About to process files...\n");
-
+        printf("About to process files...\n");
         process_files(contaminant_hash, &kmer_stats, &cmdline);
 
- printf("About to calculate stats...\n");
-
+        printf("About to calculate stats...\n");
         kmer_stats_calculate(&kmer_stats);
 
-printf("About to report stats to screen...\n");
-
+        printf("About to report stats to screen...\n");
         kmer_stats_report_to_screen(&kmer_stats);
-
-printf("Done\n");
+        
+        printf("Done\n");
     }
     
     time(&end);

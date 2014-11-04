@@ -47,7 +47,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <stdarg.h>
-#include <logger.h>
+#include "logger.h"
 
 char* log_filename = NULL;
 static FILE * screen = NULL;

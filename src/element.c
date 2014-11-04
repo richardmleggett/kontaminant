@@ -68,14 +68,9 @@ void element_assign(Element * e1, Element * e2)
 boolean element_is_key(Key key, Element e, short kmer_size)
 {
 	if (key == NULL) {
-		printf
-		    ("Do not call element_is_key wth a NULL pointer. Exiting\n");
+		printf("Do not call element_is_key wth a NULL pointer. Exiting\n");
 		exit(1);
 	}
-
-    //char temp_left[1024];
-    //char temp_right[1024];
-    //printf("Comparing %s with %s\n", binary_kmer_to_seq(key, 31, temp_left), binary_kmer_to_seq(&(e.kmer), 31, temp_right));
     
 	return binary_kmer_comparison_operator(*key, e.kmer);
 }
@@ -190,4 +185,16 @@ Orientation opposite_orientation(Orientation o)
 boolean element_check_for_flag_ALL_OFF(Element * node)
 {
 	return node->flags == ALL_OFF;
+}
+
+void db_node_print_binary(FILE * fp, Element* node, int kmer_size)
+{
+	BinaryKmer kmer;
+	binary_kmer_assignment_operator(kmer, *element_get_kmer(node));
+	Edges edges = 0;
+	uint32_t coverage = 0;
+	
+	fwrite(&kmer, sizeof(bitfield_of_64bits), NUMBER_OF_BITFIELDS_IN_BINARY_KMER, fp);
+	fwrite(&coverage, sizeof(uint32_t), 1, fp);
+	fwrite(&edges, sizeof(Edges), 1, fp);
 }

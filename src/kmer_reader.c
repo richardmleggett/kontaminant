@@ -17,6 +17,7 @@
 #include <time.h>
 #include <errno.h>
 #include <assert.h>
+#include <limits.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"
@@ -24,6 +25,14 @@
 #include "cmd_line.h"
 #include "kmer_stats.h"
 #include "kmer_reader.h"
+
+struct print_binary_args {
+    boolean(*condition) (Element* node);
+    long long count;
+    FILE * fout;
+    short kmer_size;
+};
+
 
 /*----------------------------------------------------------------------*
  * Function:
@@ -79,19 +88,21 @@ void kmer_hash_load_sliding_windows(Element **previous_node, HashTable* kmer_has
                 if (!(i == 0 && j == 0 && prev_full_entry == false && current_node == *previous_node)) {	// otherwise is the same old last entry
                     int c;
                     
-                    for (c=0; c<counts->n_contaminants; c++) {
-                        if (element_get_contaminant_bit(current_node, c) > 0) {
-                            if (counts->kmers_from_contaminant[c] == 0) {
-                                counts->contaminants_detected++;
-                            }
-                            
-                            counts->kmers_from_contaminant[c]++;
-                            
-                            if (current_node->coverage[read] == 0) {
-                                if ((current_node->coverage[0] + current_node->coverage[1]) == 0) {
-                                    stats->both_reads->contaminant_kmers_seen[c]++;
+                    if (stats != NULL) {
+                        for (c=0; c<counts->n_contaminants; c++) {
+                            if (element_get_contaminant_bit(current_node, c) > 0) {
+                                if (counts->kmers_from_contaminant[c] == 0) {
+                                    counts->contaminants_detected++;
                                 }
-                                stats->read[read]->contaminant_kmers_seen[c]++;
+                                
+                                counts->kmers_from_contaminant[c]++;
+                                
+                                if (current_node->coverage[read] == 0) {
+                                    if ((current_node->coverage[0] + current_node->coverage[1]) == 0) {
+                                        stats->both_reads->contaminant_kmers_seen[c]++;
+                                    }
+                                    stats->read[read]->contaminant_kmers_seen[c]++;
+                                }
                             }
                         }
                     }
@@ -285,7 +296,7 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderArgs* fra_2, KmerStats* stats)
+long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra_1, KmerFileReaderArgs* fra_2, KmerStats* stats)
 {
     HashTable* kmer_hash;
 	long long seq_length[2];
@@ -299,6 +310,8 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
     int number_of_files = 1;
     boolean filter_read = false;
     int i;
+    time_t time_previous = 0;
+    time_t time_now = 0;
 
     // Get hash table and initialise kmer counts structure
     kmer_hash = fra_1->KmerHash;
@@ -426,10 +439,19 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
             }
         }
 
-        //if (fra_1->cmd_line->write_progress_file) {
-        //    printf("Blob");
-        //}
+        if (cmd_line->write_progress_file) {
+            time(&time_now);
+            if (difftime(time_now, time_previous) > cmd_line->progress_delay) {
+                kmer_stats_write_progress(stats, cmd_line);
+                time_previous = time_now;
+            }
+        }
+        
         free(stats_both_reads);
+    }
+    
+    if (cmd_line->write_progress_file) {
+        kmer_stats_write_progress(stats, cmd_line);
     }
     
     for (i=0; i<number_of_files; i++) {
@@ -448,6 +470,203 @@ long long screen_or_filter_paired_end(KmerFileReaderArgs* fra_1, KmerFileReaderA
     
     return seq_length[0] + seq_length[1];
 }
+
+/*
+void load_fasta_file(char* filename, HashTable* kmer_hash, CmdLine* cmd_line)
+{
+    char buffer[1024];
+    int kmer_size = cmd_line.kmer_size;
+    
+    fp = fopen(filename, "r");
+
+    
+    while (!feof(fp)) {
+        if (fgets(buffer, 1024, fp)) {
+            if (buffer[0] == '>') {
+                printf("Got ID %s\n", buffer);
+            } else {
+                int o;
+                
+                for (o=0; o<strlen(buffer) - kmer_size; o++) {
+                    char kmer[kmer_size + 1];
+                    strncpy(kmer, buffer + o, kmer_size);
+                    kmer[kmer_size] = 0;
+                    printf("Got kmer %s\n", kmer);
+                }
+            }
+        }
+        
+    }
+}
+ */
+     
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+long long load_seq_into_kmers_hash(KmerFileReaderArgs* fra, KmerFileReaderWrapperArgs* fria)
+{
+    long long *bad_reads = &fra->bad_reads;
+    int fastq_ascii_offset = fra->fastq_ascii_offset;
+    char quality_cut_off = fra->quality_cut_off;
+    int max_read_length = fra->max_read_length;
+    HashTable * kmer_hash = fra->KmerHash;
+    KmerCounts counts;
+	long long seq_length = 0;
+	long long seq_count = 0;
+    long long contaminated_reads = 0;
+	short kmer_size = kmer_hash->kmer_size;
+	int entry_length;
+    int kmers_loaded;
+	boolean prev_full_entry = true;
+	Element *previous_node = NULL;
+    boolean keep_reading = true;
+    
+    // Open file
+    fria->input_fp =  fopen(fra->input_filename, "r");
+    if (fria->input_fp == NULL) {
+		fprintf(stderr, "Error: can't open file %s\n", fra->input_filename);
+		exit(1);
+	}
+    
+	// Preallocate the memory used to read the sequences
+	Sequence *seq = malloc(sizeof(Sequence));
+	if (seq == NULL) {
+		fputs("Out of memory trying to allocate Sequence\n", stderr);
+		exit(1);
+	}
+    fria->seq = seq;
+	alloc_sequence(seq, max_read_length, LINE_MAX, fastq_ascii_offset);
+    KmerSlidingWindowSet * windows = binary_kmer_sliding_window_set_new_from_read_length(kmer_size,max_read_length);
+    
+    // Read file
+	while ((entry_length = file_reader_wrapper(fria)) && keep_reading)
+	{
+        int nkmers;
+		
+        seq_length += (long long)(entry_length -  (prev_full_entry == false ? kmer_size : 0));
+		nkmers = get_sliding_windows_from_sequence(seq->seq, seq->qual, entry_length, quality_cut_off, kmer_size, windows, windows->max_nwindows, windows->max_kmers, false, 0);
+
+		if (nkmers == 0) {
+			(*bad_reads)++;
+		} else {
+            kmer_hash_load_sliding_windows(&previous_node, kmer_hash, prev_full_entry, fra, kmer_size, windows, 0, 0, &counts);
+        }
+        
+        if (fria->full_entry == false) {
+            shift_last_kmer_to_start_of_sequence(seq, entry_length, kmer_size);
+        } else {
+            hash_table_add_number_of_reads(1, kmer_hash);
+
+            if(kmers_loaded > 0){
+                contaminated_reads++;
+            }
+            
+            seq_count++;
+            kmers_loaded=0;
+        }
+        
+        prev_full_entry = fria->full_entry ;
+        
+        if (seq_count % 10000) {
+            if (hash_table_percentage_occupied(kmer_hash) > fra->maximum_ocupancy) {
+                keep_reading = false;
+            }
+        }
+    }
+    
+    free_sequence(&seq);
+    fria->seq = NULL;
+    binary_kmer_free_kmers_set(&windows);
+    return seq_length;
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void kmer_print_binary_signature(FILE * fp, uint32_t kmer_size, uint32_t num_cols, uint32_t mean_read_len, uint64_t total_seq)
+{
+    char magic_number[6];
+    uint32_t version = BINVERSION;
+    uint32_t num_bitfields = NUMBER_OF_BITFIELDS_IN_BINARY_KMER;
+    
+    magic_number[0]='K';
+    magic_number[1]='M';
+    magic_number[2]='E';
+    magic_number[3]='R';
+    magic_number[4]='S';
+    magic_number[5]=' ';
+    
+    fwrite(magic_number,sizeof(char),6,fp);
+    fwrite(&version,sizeof(uint32_t),1,fp);
+    fwrite(&kmer_size,sizeof(uint32_t),1,fp);
+    fwrite(&num_bitfields, sizeof(uint32_t),1,fp);
+    fwrite(&num_cols, sizeof(uint32_t), 1, fp);
+    fwrite(&mean_read_len, sizeof(uint32_t), 1, fp);
+    fwrite(&total_seq, sizeof(uint64_t), 1, fp);
+    fwrite(magic_number,sizeof(char),6,fp);
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+/*
+static void print_node_binary(Element* node, void * args) {
+    struct print_binary_args * arguments = (struct print_binary_args * ) args;
+    
+    if (arguments->condition(node)) {
+        arguments->count++;
+        db_node_print_binary(arguments->fout, node, arguments->kmer_size);
+    }
+}
+*/
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+/*
+void kmer_hash_dump_binary(char *filename, boolean(*condition) (Element* node), HashTable* db_graph)
+{
+	FILE *fout;
+	int mean_read_len = 0;
+    long long total_seq = 0;
+    struct print_binary_args args;
+    void* pass[1];
+    
+	fout = fopen(filename, "wb");
+	if (fout == NULL) {
+		fprintf(stderr, "cannot open %s", filename);
+		exit(1);
+	}
+    
+	total_seq = hash_table_get_number_of_reads(db_graph);
+	kmer_print_binary_signature(fout,db_graph->kmer_size,1, mean_read_len, total_seq);
+    
+    args.condition = condition;
+    args.count = 0;
+    args.fout = fout;
+    args.kmer_size = db_graph->kmer_size;
+    
+    pass[0] = (void*)&args;
+    
+    hash_table_traverse_with_args(&print_node_binary, (void **) &pass, db_graph);
+    
+	fclose(fout);
+    
+	printf("%'lld kmers dumped\n", args.count);
+}
+*/
 
 /*----------------------------------------------------------------------*
  * Function:
