@@ -158,8 +158,7 @@ Orientation db_node_get_orientation(BinaryKmer * k, Element * e, short kmer_size
 		return reverse;
 	}
 
-	printf
-	    ("programming error - you have called  db_node_get_orientation with a kmer that is neither equal to the kmer in this node, nor its rev comp\n");
+	printf("programming error - you have called  db_node_get_orientation with a kmer that is neither equal to the kmer in this node, nor its rev comp\n");
 	char tmpseq1[kmer_size];
 	char tmpseq2[kmer_size]; 
 	printf("Arg 1 Kmer is %s and Arg 2 node kmer is %s\n",
@@ -191,10 +190,10 @@ void db_node_print_binary(FILE * fp, Element* node, int kmer_size)
 {
 	BinaryKmer kmer;
 	binary_kmer_assignment_operator(kmer, *element_get_kmer(node));
-	Edges edges = 0;
-	uint32_t coverage = 0;
+	//Edges edges = 0;
+	//uint32_t coverage = 0;
 	
 	fwrite(&kmer, sizeof(bitfield_of_64bits), NUMBER_OF_BITFIELDS_IN_BINARY_KMER, fp);
-	fwrite(&coverage, sizeof(uint32_t), 1, fp);
-	fwrite(&edges, sizeof(Edges), 1, fp);
+	//fwrite(&coverage, sizeof(uint32_t), 1, fp);
+	//fwrite(&edges, sizeof(Edges), 1, fp);
 }

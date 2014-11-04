@@ -1,4 +1,12 @@
-
+typedef struct {
+    char header_word[12];
+    uint16_t version;
+    uint16_t kmer_size;
+    uint16_t num_bitfields;
+    uint16_t reserved[5];
+    uint32_t num_kmers;
+    char footer_word[12];
+} KmerLibraryHeader;
 
 typedef struct{
     FILE* input_fp;

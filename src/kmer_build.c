@@ -67,9 +67,20 @@ void dump_kmer_hash(CmdLine* cmd_line, HashTable * kmer_hash)
 {
     FILE *fout;
     char* output_filename = malloc(strlen(cmd_line->input_filename_one) + 16);
-    int mean_read_len = 0;
-    long long total_seq = 0;
     long long kmers_dumped = 0;
+    KmerLibraryHeader* header = calloc(1, sizeof(KmerLibraryHeader));
+    
+    if (!header) {
+        printf("Error: can't allocate room for header\n");
+        exit(1);
+    }
+    
+    strcpy(header->header_word, "KONTAMINANT");
+    strcpy(header->footer_word, "KONTAMINANT");
+    header->version = BINVERSION;
+    header->kmer_size = kmer_hash->kmer_size;
+    header->num_bitfields = NUMBER_OF_BITFIELDS_IN_BINARY_KMER;
+    header->num_kmers = kmer_hash->unique_kmers;
 
     sprintf(output_filename, "%s.%d.kmers", cmd_line->input_filename_one, cmd_line->kmer_size);
     
@@ -81,9 +92,8 @@ void dump_kmer_hash(CmdLine* cmd_line, HashTable * kmer_hash)
 		exit(1);
 	}
     
-	total_seq = hash_table_get_number_of_reads(kmer_hash);
-	kmer_print_binary_signature(fout,kmer_hash->kmer_size,1, mean_read_len, total_seq);
-
+    fwrite(header, sizeof(KmerLibraryHeader), 1, fout);
+    
     void print_node_binary(Element* node) {
         db_node_print_binary(fout, node, kmer_hash->kmer_size);
         kmers_dumped++;
@@ -92,13 +102,6 @@ void dump_kmer_hash(CmdLine* cmd_line, HashTable * kmer_hash)
     hash_table_traverse(&print_node_binary, kmer_hash);
     
 	fclose(fout);
-    
-	printf("%'lld kmers dumped\n", kmers_dumped);
-    
-    
-    //kmer_hash_dump_binary(output_filename, NULL, kmer_hash);
-    
-    
-    
     fflush(stdout);
+	printf("%'lld kmers dumped\n", kmers_dumped);
 }

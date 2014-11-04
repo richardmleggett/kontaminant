@@ -589,6 +589,7 @@ long long load_seq_into_kmers_hash(KmerFileReaderArgs* fra, KmerFileReaderWrappe
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
+/*
 void kmer_print_binary_signature(FILE * fp, uint32_t kmer_size, uint32_t num_cols, uint32_t mean_read_len, uint64_t total_seq)
 {
     char magic_number[6];
@@ -611,6 +612,7 @@ void kmer_print_binary_signature(FILE * fp, uint32_t kmer_size, uint32_t num_col
     fwrite(&total_seq, sizeof(uint64_t), 1, fp);
     fwrite(magic_number,sizeof(char),6,fp);
 }
+*/
 
 /*----------------------------------------------------------------------*
  * Function:
@@ -676,10 +678,44 @@ void kmer_hash_dump_binary(char *filename, boolean(*condition) (Element* node), 
  *----------------------------------------------------------------------*/
 static boolean check_binary_signature_kmers(FILE* fp, uint32_t kmer_size, uint32_t binary_version, uint32_t* number_of_colours_in_binary, uint32_t* mean_read_len, uint64_t* total_seq)
 {
-    size_t read;
-    char magic_number[6];
-    boolean ret = false;
+    //size_t read;
+    //char magic_number[6];
+    //boolean ret = false;
+    KmerLibraryHeader header;
     
+    if (fread(&header, sizeof(KmerLibraryHeader), 1, fp) <= 0) {
+        printf("Error: couldn't read kmer library file header\n");
+        return false;
+    }
+    
+    if (strncmp(header.header_word, "KONTAMINANT", 11) != 0) {
+        printf("Error: bad header in kmer library file\n");
+        return false;
+    }
+
+    if (strncmp(header.footer_word, "KONTAMINANT", 11) != 0) {
+        printf("Error: bad header in kmer library file\n");
+        return false;
+    }
+    
+    if (header.version != BINVERSION) {
+        printf("Error: incompatible kmer library file version\n");
+        return false;
+    }
+    
+    if (header.kmer_size != kmer_size) {
+        printf("Error: kmer library file has different kmer size\n");
+        return false;
+    }
+    
+    if (header.num_kmers < 1) {
+        printf("Error: bad number of kmers in kmer library file\n");
+        return false;
+    }
+    
+    
+    
+    /*
     read = fread(magic_number,sizeof(char),6,fp);
     if (read>0 &&
         magic_number[0]=='K' &&
@@ -773,7 +809,9 @@ static boolean check_binary_signature_kmers(FILE* fp, uint32_t kmer_size, uint32
         printf("Binary does not have magic number in header. Corrupt, or not a KMERS binary\n");
     }
     
-    return ret;
+    return ret; */
+    
+    return true;
 }
 
 /*----------------------------------------------------------------------*
@@ -785,25 +823,25 @@ static boolean check_binary_signature_kmers(FILE* fp, uint32_t kmer_size, uint32
 boolean read_kmer_from_file(FILE* fp, short kmer_size, Element* node)
 {
 	BinaryKmer kmer;
-	Edges edges;
-	uint32_t coverage;
+	//Edges edges = 0;
+	//uint32_t coverage = 0;
 	int read;
     
 	read = fread(&kmer, sizeof(bitfield_of_64bits), NUMBER_OF_BITFIELDS_IN_BINARY_KMER, fp);
     
 	if (read > 0) {
 		element_initialise(node, &kmer, kmer_size);
-		read = fread(&coverage, sizeof(uint32_t), 1, fp);
-		if (read == 0) {
-			puts("Error: couldn't read coverage\n");
-			exit(1);
-		}
+		//read = fread(&coverage, sizeof(uint32_t), 1, fp);
+		//if (read == 0) {
+		//	puts("Error: couldn't read coverage\n");
+		//	exit(1);
+		//}
         
-		read = fread(&edges, sizeof(Edges), 1, fp);
-		if (read == 0) {
-			puts("Error: couldn't read edges\n");
-			exit(1);
-		}
+		//read = fread(&edges, sizeof(Edges), 1, fp);
+		//if (read == 0) {
+		//	puts("Error: couldn't read edges\n");
+		//	exit(1);
+		//}
 	} else {
 		return false;
 	}
@@ -837,7 +875,6 @@ uint32_t load_kmer_library(char* filename, int n, int k, HashTable* contaminant_
 	}
     
 	if ( !check_binary_signature_kmers(fp_bin, k, BINVERSION, &num_colours_in_binary, &mean_read_len, &total_seq)) {
-        printf("Error: Binary version or kmer_size are inconsistent");
 		exit(1);
 	}
     

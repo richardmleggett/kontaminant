@@ -38,7 +38,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.2"
+#define VERSION "2.0.3"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -331,20 +331,11 @@ int main(int argc, char* argv[])
         dump_kmer_hash(&cmdline, contaminant_hash);
     } else if ((cmdline.run_type == DO_SCREEN) || (cmdline.run_type == DO_FILTER)) {
         load_contamints(contaminant_hash, &kmer_stats, &cmdline);
-                
         printf("\n");
         hash_table_print_stats(contaminant_hash);
-
-        printf("About to compare kmers...\n");
         kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats, &cmdline);
-        
-        printf("About to process files...\n");
         process_files(contaminant_hash, &kmer_stats, &cmdline);
-
-        printf("About to calculate stats...\n");
         kmer_stats_calculate(&kmer_stats);
-
-        printf("About to report stats to screen...\n");
         kmer_stats_report_to_screen(&kmer_stats);
         
         printf("Done\n");
