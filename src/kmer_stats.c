@@ -274,13 +274,16 @@ void kmer_stats_calculate(KmerStats* stats)
 void kmer_stats_report_read_stats(KmerStats* stats, KmerStatsReadCounts* read)
 {
     int i;
+    char str[1024];
     
     printf("Overall statistics\n\n");
-    printf("                            Number of reads: %d\n", read->number_of_reads);
-    printf(" Number of reads with 1+ kmer contamination: %d\n", read->k1_contaminated_reads);
-    printf("      %% of reads with 1+ kmer contamination: %.2f\n", read->k1_contaminaned_reads_pc);
-    printf("Number of reads with %d+ kmer contamination: %d\n", stats->kmer_threshold, read->kn_contaminated_reads);
-    printf("     %% of reads with %d+ kmer contamination: %.2f\n", stats->kmer_threshold, read->kn_contaminaned_reads_pc);
+    printf("%64s: %d\n", "Number of reads", read->number_of_reads);
+    printf("%64s: %d\n", "Number of reads with 1+ kmer contamination", read->k1_contaminated_reads);
+    printf("%64s: %.2f\n", "%% of reads with 1+ kmer contamination", read->k1_contaminaned_reads_pc);
+    sprintf(str, "Number of reads with %d+ kmer contamination", stats->kmer_threshold);
+    printf("%64s: %d\n", str, read->kn_contaminated_reads);
+    sprintf(str, "%% of reads with %d+ kmer contamination", stats->kmer_threshold);
+    printf("%64s: %.2f\n", str, read->kn_contaminaned_reads_pc);
     
     printf("\nPer-contaminant statistics\n\n");
     
@@ -313,17 +316,22 @@ void kmer_stats_report_read_stats(KmerStats* stats, KmerStatsReadCounts* read)
 void kmer_stats_report_both_stats(KmerStats* stats)
 {
     int i;
+    char str[1024];
     
     printf("Overall statistics\n\n");
-    printf("                                     Number of pairs: %d\n", stats->both_reads->number_of_reads);
-    printf("  Number of pairs with 1+ kmer contamination in either: %d\n", stats->both_reads->either_k1_contaminated_reads);
-    printf("       %% of pairs with 1+ kmer contamination in either: %.2f\n", stats->both_reads->either_k1_contaminaned_reads_pc);
-    printf(" Number of pairs with %d+ kmer contamination in either: %d\n", stats->kmer_threshold, stats->both_reads->either_kn_contaminated_reads);
-    printf("      %% of pairs with %d+ kmer contamination in either: %.2f\n", stats->kmer_threshold, stats->both_reads->either_kn_contaminaned_reads_pc);
-    printf("  Number of pairs with 1+ kmer contamination in both: %d\n", stats->both_reads->both_k1_contaminated_reads);
-    printf("       %% of pairs with 1+ kmer contamination in both: %.2f\n", stats->both_reads->both_k1_contaminaned_reads_pc);
-    printf(" Number of pairs with %d+ kmer contamination in both: %d\n", stats->kmer_threshold, stats->both_reads->both_kn_contaminated_reads);
-    printf("      %% of pairs with %d+ kmer contamination in both: %.2f\n", stats->kmer_threshold, stats->both_reads->both_kn_contaminaned_reads_pc);
+    printf("%64s: %d\n", "Number of pairs", stats->both_reads->number_of_reads);
+    printf("%64s: %d\n", "Number of pairs with 1+ kmer contamination in only R1 or R2", stats->both_reads->either_k1_contaminated_reads);
+    printf("%64s: %.2f\n", "%% of pairs with 1+ kmer contamination in only R1 or R2", stats->both_reads->either_k1_contaminaned_reads_pc);
+    sprintf(str, "Number of pairs with %d+ kmer contamination in only R1 or R2", stats->kmer_threshold);
+    printf("%64s: %d\n", str, stats->both_reads->either_kn_contaminated_reads);
+    sprintf(str, "%% of pairs with %d+ kmer contamination in only R1 or R2", stats->kmer_threshold);
+    printf("%64s: %.2f\n", str, stats->both_reads->either_kn_contaminaned_reads_pc);
+    printf("%64s: %d\n", "Number of pairs with 1+ kmer contamination in both R1 and R2", stats->both_reads->both_k1_contaminated_reads);
+    printf("%64s: %.2f\n", "%% of pairs with 1+ kmer contamination in both R1 and R2", stats->both_reads->both_k1_contaminaned_reads_pc);
+    sprintf(str, "Number of pairs with %d+ kmer contamination in both R1 and R2", stats->kmer_threshold);
+    printf("%64s: %d\n", str, stats->both_reads->both_kn_contaminated_reads);
+    sprintf(str, "%% of pairs with %d+ kmer contamination in both R1 and R2", stats->kmer_threshold);
+    printf("%64s: %.2f\n", str, stats->both_reads->both_kn_contaminaned_reads_pc);
     
     printf("\nPer-contaminant statistics\n\n");
 

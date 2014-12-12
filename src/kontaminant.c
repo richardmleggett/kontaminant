@@ -198,10 +198,14 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
                 exit(2);
             }
 
-            fra[i]->output_filename = malloc(strlen(filenames[i]) + strlen(cmdline->output_prefix) + 1);
-            if (!fra[i]->output_filename) {
-                printf("Error: Can't get memory for output filenames\n");
-                exit(3);
+            if (cmdline->output_prefix) {
+                fra[i]->output_filename = malloc(strlen(filenames[i]) + strlen(cmdline->output_prefix) + 1);
+                if (!fra[i]->output_filename) {
+                    printf("Error: Can't get memory for output filenames\n");
+                    exit(3);
+                }
+            } else {
+                fra[i]->output_filename = 0;
             }
 
             if (cmdline->removed_prefix) {
@@ -211,6 +215,8 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
                     printf("Error: Can't get memory for output filenames\n");
                     exit(3);
                 }
+            } else {
+                fra[i]->removed_filename = 0;
             }
             
             fra[i]->bad_reads = 0;

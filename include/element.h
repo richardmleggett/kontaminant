@@ -44,8 +44,9 @@
 
 typedef char Edges;
 
-// We provide a smaller version of element for use in count_kmers
-typedef struct {
+// To pack it, use
+// typedef struct  __attribute__((packed)) {
+typedef struct  __attribute__((packed)) {
  	BinaryKmer kmer;
     uint32_t contaminant_flags[CONTAMINANT_FIELDS];
     uint16_t coverage[2];

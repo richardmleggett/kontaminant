@@ -72,7 +72,7 @@ void usage(void)
            "\nWhere:\n" \
            "    [-s | --screen] invokes screening.\n" \
            "    [-f | --filter] invokes filtering.\n" \
-           "    [-i | --index] indexes a references.\n" \
+           "    [-i | --index] indexes a reference.\n" \
            "\nOptions:\n" \
            "    [-1 | --input_one] Input R1 file (or reference FASTA).\n" \
            "    [-2 | --input_two] Input R2 file.\n" \
