@@ -42,6 +42,7 @@ void initialise_cmdline(CmdLine* c)
     c->file_of_files = 0;
     c->progress_dir = 0;
     c->contaminants = 0;
+    c->contaminants_file = 0;
     c->contaminant_dir = malloc(MAX_PATH_LENGTH);
     strcpy(c->contaminant_dir, "/Users/leggettr/Documents/Projects/kscreen/contaminants");
     c->output_prefix = 0;
@@ -80,6 +81,7 @@ void usage(void)
            "    [-n | --mem_height] Number of buckets in hash table in bits (default 20, this is a power of 2, ie 2^mem_height).\n" \
            "    [-c | --contaminants] List of contaminants to screen/filter.\n" \
            "    [-d | --contaminant_dir] Contaminant library directory.\n" \
+           "    [-e | --contaminants_file] Filename of file containing list of contaminants to screen/filer.\n" \
            "    [-g | --file_format] File format FASTA or FASTQ (default FASTQ).\n" \
            "    [-k | --kmer_size] Kmer size (default 21).\n" \
            "    [-o | --output_prefix] Output prefix (filtering only).\n" \
@@ -108,6 +110,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"mem_width", required_argument, NULL, 'b'},
         {"contaminants", required_argument, NULL, 'c'},
         {"contaminant_dir", required_argument, NULL, 'd'},
+        {"contaminants_file", required_argument, NULL, 'e'},
         {"filter", no_argument, NULL, 'f'},
         {"file_format", required_argument, NULL, 'g'},
         {"help", no_argument, NULL, 'h'},
@@ -119,6 +122,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"removed_prefix", required_argument, NULL, 'r'},
         {"screen", no_argument, NULL, 's'},
         {"threshold", required_argument, NULL, 't'},
+        {"progress_interval", required_argument, NULL, 'u'},
         {"keep_contaminated_reads", no_argument, NULL, 'x'},
         {"subsample_ratio", required_argument, NULL, 'y'},
         {"file_of_files", required_argument, NULL, 'z'},
@@ -132,7 +136,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:fg:hik:n:so:p:r:t:xyz:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hik:n:so:p:r:t:u:xyz:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case '1':
@@ -193,6 +197,19 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                 c->contaminant_dir = malloc(strlen(optarg) + 1);
                 if (c->contaminant_dir) {
                     strcpy(c->contaminant_dir, optarg);
+                } else {
+                    printf("Error: can't allocate memory for string.\n");
+                    exit(1);
+                }
+                break;
+            case 'e':
+                if (optarg==NULL) {
+                    printf("Error: [-e | --contaminants_file] option requires an argument.\n");
+                    exit(1);
+                }
+                c->contaminants_file = malloc(strlen(optarg) + 1);
+                if (c->contaminants_file) {
+                    strcpy(c->contaminants_file, optarg);
                 } else {
                     printf("Error: can't allocate memory for string.\n");
                     exit(1);
@@ -301,6 +318,13 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                 }
                 c->kmer_threshold = atoi(optarg);
                 break;
+            case 'u':
+                if (optarg == NULL) {
+                    printf("[-u | --progress_interval] option requires int argument [delay in seconds]");
+                    exit(1);
+                }
+                c->progress_delay = atoi(optarg);
+                break;
             case 'x':
                 c->keep_contaminated_reads = true;
                 break;
@@ -348,7 +372,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
     }
     
     if ((c->run_type == DO_SCREEN) || (c->run_type == DO_FILTER)) {
-        if (c->contaminants == 0) {
+        if ((c->contaminants == 0) && (c->contaminants_file == 0)) {
             printf("Error: you must specify a contaminant list\n");
             exit(1);
         }

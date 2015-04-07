@@ -21,6 +21,10 @@ typedef struct {
     uint32_t contaminant_kmers_seen[MAX_CONTAMINANTS];
     double   contaminant_kmers_seen_pc[MAX_CONTAMINANTS];
     
+    // Number of reads where most kmers are the contaminant
+    uint32_t reads_with_highest_contaminant[MAX_CONTAMINANTS];
+    uint32_t reads_unclassified;
+    
     // Coverage histogram
     uint32_t contaminated_kmers_per_read[MAX_READ_LENGTH];
 } KmerStatsReadCounts;
@@ -60,6 +64,7 @@ typedef struct {
     uint32_t n_contaminants;
     char* contaminant_ids[MAX_CONTAMINANTS];
     uint32_t contaminant_kmers[MAX_CONTAMINANTS];
+    uint32_t unique_kmers[MAX_CONTAMINANTS];
     uint32_t kmers_in_common[MAX_CONTAMINANTS][MAX_CONTAMINANTS];
     uint32_t number_of_files;
     KmerStatsReadCounts* read[2];

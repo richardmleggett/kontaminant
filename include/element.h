@@ -37,10 +37,10 @@
 //#include <nucleotide.h>
 //#include <seq.h>
 //#include <binary_kmer.h>
-//#include <flags.h>
+#include <flags.h>
 
-#define MAX_CONTAMINANTS 32
-#define CONTAMINANT_FIELDS 1
+#define CONTAMINANT_FIELDS 0Op
+#define MAX_CONTAMINANTS ((CONTAMINANT_FIELDS*32)+(32 - FLAG_BITS_USED))
 
 typedef char Edges;
 
@@ -48,9 +48,11 @@ typedef char Edges;
 // typedef struct  __attribute__((packed)) {
 typedef struct  __attribute__((packed)) {
  	BinaryKmer kmer;
+    uint32_t flags;
     uint32_t contaminant_flags[CONTAMINANT_FIELDS];
+#ifdef STORE_FULL_COVERAGE
     uint16_t coverage[2];
-	uint16_t flags;
+#endif
 } Element;
 
 typedef BinaryKmer* Key;
@@ -64,3 +66,5 @@ uint32_t element_get_contaminant_bit(Element* e, int id);
 Key element_get_key(BinaryKmer * kmer, short kmer_size, Key preallocated_key);
 BinaryKmer *element_get_kmer(Element * e);
 void db_node_print_binary(FILE * fp, Element* node, int kmer_size);
+void element_increment_coverage(Element *node, int read);
+uint32_t element_get_coverage(Element *node, int read);
