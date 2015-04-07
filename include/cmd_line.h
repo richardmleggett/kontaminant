@@ -34,6 +34,7 @@ typedef struct {
     char* file_of_files;
     char* progress_dir;
     char* contaminants;
+    char* contaminants_file;
     char* contaminant_dir;
     char* output_prefix;
     char* removed_prefix;
