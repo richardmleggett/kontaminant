@@ -59,11 +59,8 @@ void element_assign(Element * e1, Element * e2)
         e1->contaminant_flags[i] = e2->contaminant_flags[i];
     }
     
-#ifdef STORE_FULL_COVERAGE
     e1->coverage[0] = e2->coverage[0];
     e1->coverage[1] = e2->coverage[1];
-#endif
-    
     e1->flags = e2->flags;
 
 }
@@ -118,61 +115,32 @@ void element_initialise(Element * e, BinaryKmer * kmer, short kmer_size)
     }
 
     e->flags = ASSIGNED;
-
-#ifdef STORE_FULL_COVERAGE
     e->coverage[0] = 0;
     e->coverage[1] = 0;
-#endif
 }
 
 void element_set_contaminant_bit(Element* e, int id)
 {
-    uint32_t index = id / 32;
-    uint32_t bit = id - (index * 32);
-    uint32_t* field;
-    //uint32_t bit = 1 << id;
+    uint32_t bit = 1 << id;
     
-    if (id >= MAX_CONTAMINANTS) {
-        printf("Error: currently, only %d contaminants supported.\n", MAX_CONTAMINANTS);
+    if (id > 31) {
+        printf("Error: currently, only 32 contaminants supported.\n");
         exit(1);
     }
     
-    if (index >= CONTAMINANT_FIELDS) {
-        bit += FLAG_BITS_USED;
-        field = &(e->flags);
-    } else {
-        field = &(e->contaminant_flags[index]);
-    }
-    
-    *field = *field | (1<<bit);
-    
-    //printf("id=%d     index=%d     bit=%d     field=%x\n", id, index, bit, field);
-    
-    //e->contaminant_flags[0] = e->contaminant_flags[0] | bit;
+    e->contaminant_flags[0] = e->contaminant_flags[0] | bit;
 }
 
 uint32_t element_get_contaminant_bit(Element* e, int id)
 {
-    uint32_t index = id / 32;
-    uint32_t bit = id - (index * 32);
-    uint32_t* field;
-    //uint32_t bit = 1 << id;
+    uint32_t bit = 1 << id;
     
-    if (id > MAX_CONTAMINANTS) {
-        printf("Error: currently, only %d contaminants supported.\n", MAX_CONTAMINANTS);
+    if (id > 31) {
+        printf("Error: currently, only 32 contaminants supported.\n");
         exit(1);
     }
-
-    if (index >= CONTAMINANT_FIELDS) {
-        bit += FLAG_BITS_USED;
-        field = &(e->flags);
-    } else {
-        field = &(e->contaminant_flags[index]);
-    }
     
-    return (*field) & (1<<bit);
-    
-    //return e->contaminant_flags[0] & bit;
+    return e->contaminant_flags[0] & bit;
 }
 
 Orientation db_node_get_orientation(BinaryKmer * k, Element * e, short kmer_size)
@@ -228,44 +196,4 @@ void db_node_print_binary(FILE * fp, Element* node, int kmer_size)
 	fwrite(&kmer, sizeof(bitfield_of_64bits), NUMBER_OF_BITFIELDS_IN_BINARY_KMER, fp);
 	//fwrite(&coverage, sizeof(uint32_t), 1, fp);
 	//fwrite(&edges, sizeof(Edges), 1, fp);
-}
-
-void flags_action_set_flag(Flags f, Flags * db)
-{
-    *db = *db | f;
-}
-
-boolean flags_check_for_any_flag(Flags f, Flags * db)
-{
-    boolean r = (*db & f) > 0;
-    return r;
-}
-
-void element_increment_coverage(Element *node, int read)
-{
-#ifdef STORE_FULL_COVERAGE
-    node->coverage[read]++;
-#else
-    if (read == 0) {
-        flags_action_set_flag(COVERAGE_L, &(node->flags));
-    } else if (read == 1) {
-        flags_action_set_flag(COVERAGE_R, &(node->flags));
-    } else {
-        printf("Error - bad read number in element_increment_coverage!\n");
-        exit(1);
-    }
-#endif
-}
-
-uint32_t element_get_coverage(Element *node, int read)
-{
-#ifdef STORE_FULL_COVERAGE
-    return node->coverage[read];
-#else
-    if (flags_check_for_any_flag(read==0?COVERAGE_L:COVERAGE_R, &(node->flags))) {
-        return 1;
-    } else {
-        return 0;
-    }
-#endif
 }

@@ -42,14 +42,9 @@
 #define SHORT_FLAGS
 #endif
 
-#define FLAG_BITS_USED 4
-
-typedef uint32_t Flags;
-#define ASSIGNED			  (1 << 0)  //x0001
-#define COVERAGE_L            (1 << 1)  //x0002
-#define COVERAGE_R            (1 << 2)  //x0003
-/*
-#define  VISITED			  (1 << 1)  //x0002
+typedef uint16_t Flags;
+#define  ASSIGNED			  (1 << 0)  //x0001
+#define  VISITED			  (1 << 1)  //x0002 
 #define  PRUNED				  (1 << 2)  //x0003 
 #define  BRANCH_NODE_FORWARD  (1 << 3)  //x0004 
 #define  BRANCH_NODE_REVERSE  (1 << 4)  //x0010
@@ -64,7 +59,6 @@ typedef uint32_t Flags;
 #define	 Y_START			  (1 << 13) //x2000 
 #define  VISITED_FORWARD  	  (1 << 14) //x4000
 #define  VISITED_REVERSE  	  (1 << 15) //x8000
-*/
 
 boolean flags_check_for_flag(Flags f, Flags * db);
 boolean flags_check_for_any_flag(Flags f, Flags * db);

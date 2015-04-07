@@ -89,24 +89,16 @@ void kmer_hash_load_sliding_windows(Element **previous_node, HashTable* kmer_has
                     int c;
                     
                     if (stats != NULL) {
-                        /* Go through all contaminants */
                         for (c=0; c<counts->n_contaminants; c++) {
-                            /* Check if kmer is found in this contaminant */
                             if (element_get_contaminant_bit(current_node, c) > 0) {
-                                /* If the count of kmers from this contaminant is 0, then this is the first kmer we've
-                                   seen from this contaminant, so we update the count of number of contaminants seen */
                                 if (counts->kmers_from_contaminant[c] == 0) {
                                     counts->contaminants_detected++;
                                 }
                                 
-                                /* Update the count of number of kmers from this contaminant */
                                 counts->kmers_from_contaminant[c]++;
                                 
-                                /* Now for the stats for both reads: If there is no coverage for this kmer in either
-                                   read, then this is the first time we've seen this kmer, so update the count of kmers
-                                   seen. */
-                                if (element_get_coverage(current_node, read) == 0) {
-                                    if ((element_get_coverage(current_node, 0) + element_get_coverage(current_node, 1)) == 0) {
+                                if (current_node->coverage[read] == 0) {
+                                    if ((current_node->coverage[0] + current_node->coverage[1]) == 0) {
                                         stats->both_reads->contaminant_kmers_seen[c]++;
                                     }
                                     stats->read[read]->contaminant_kmers_seen[c]++;
@@ -115,8 +107,7 @@ void kmer_hash_load_sliding_windows(Element **previous_node, HashTable* kmer_has
                         }
                     }
                     
-                    /* Update count of how many times we've seen this kmer in this read */
-                    element_increment_coverage(current_node, read);
+                    current_node->coverage[read]++;
                     counts->kmers_loaded++;
                     
                 }
@@ -242,8 +233,6 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
 
     assert(fra != NULL);
     assert(fra->KmerHash != NULL);
-
-    memset(&tmp_stats, 0, sizeof(KmerStatsReadCounts));
     
     kmer_hash = fra->KmerHash;
     frw = get_kmer_file_reader_wrapper(kmer_hash->kmer_size, fra);
@@ -902,10 +891,8 @@ uint32_t load_kmer_library(char* filename, int n, int k, HashTable* contaminant_
         
         element_set_contaminant_bit(current_node, n);
         
-#ifdef STORE_FULL_COVERAGE
         current_node->coverage[0] = 0;
         current_node->coverage[1] = 0;
-#endif
 	}
     
 	fclose(fp_bin);

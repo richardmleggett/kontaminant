@@ -38,7 +38,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.5"
+#define VERSION "2.0.4"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -127,86 +127,35 @@ HashTable* create_hash_table(CmdLine* cmdline, int kmer_size)
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void load_contamints_from_file(HashTable* contaminant_hash, KmerStats* stats, CmdLine* cmdline)
-{
-    char filename[MAX_PATH_LENGTH];
-    char con[1024];
-    FILE* fp = fopen(cmdline->contaminants_file, "r");
-    
-    if (!fp) {
-        printf("Error: can't open file %s\n", cmdline->contaminants_file);
-        exit(1);
-    }
-    
-    stats->n_contaminants = 0;
-    
-    printf("\nContaminants file\n");
-    while (!feof(fp)) {
-        if (fgets(con, 1024, fp)) {
-            chomp(con);
-            if (strlen(con) > 1) {
-                printf("Loading contaminant %s\n", con);
-                sprintf(filename, "%s/%s.fasta.%d.kmers", cmdline->contaminant_dir, con, cmdline->kmer_size);
-                printf("      from filename %s\n", filename);
-                
-                stats->contaminant_ids[stats->n_contaminants] = malloc(strlen(con) + 1);
-                
-                if (stats->contaminant_ids[stats->n_contaminants]) {
-                    strcpy(stats->contaminant_ids[stats->n_contaminants], con);
-                } else {
-                    printf("Error: can't allocate memory for string!");
-                    exit(1);
-                }
-                
-                stats->contaminant_kmers[stats->n_contaminants] = load_kmer_library(filename, stats->n_contaminants, cmdline->kmer_size, contaminant_hash);
-                
-                stats->n_contaminants++;
-            }
-        }
-    }
-    
-    fclose(fp);
-}
-
-/*----------------------------------------------------------------------*
- * Function:
- * Purpose:
- * Parameters: None
- * Returns:    None
- *----------------------------------------------------------------------*/
 void load_contamints(HashTable* contaminant_hash, KmerStats* stats, CmdLine* cmdline)
 {
     char* con = strtok(cmdline->contaminants, ",");
     char filename[MAX_PATH_LENGTH];
     
-    if (cmdline->contaminants_file != 0) {
-        load_contamints_from_file(contaminant_hash, stats, cmdline);
-    } else {
-        stats->n_contaminants = 0;
+    stats->n_contaminants = 0;
 
-        printf("\n");
-        while (con != NULL) {
-            printf("Loading contaminant %s\n", con);
-            sprintf(filename, "%s/%s.fasta.%d.kmers", cmdline->contaminant_dir, con, cmdline->kmer_size);
-            printf("      from filename %s\n", filename);
-            
-            stats->contaminant_ids[stats->n_contaminants] = malloc(strlen(con) + 1);
-            
-            if (stats->contaminant_ids[stats->n_contaminants]) {
-                strcpy(stats->contaminant_ids[stats->n_contaminants], con);
-            } else {
-                printf("Error: can't allocate memory for string!");
-                exit(1);
-            }
-            
-            stats->contaminant_kmers[stats->n_contaminants] = load_kmer_library(filename, stats->n_contaminants, cmdline->kmer_size, contaminant_hash);
-            
-            stats->n_contaminants++;
-            con = strtok(NULL, ",");
+    printf("\n");
+    while (con != NULL) {
+        printf("Loading contaminant %s\n", con);
+        sprintf(filename, "%s/%s.fasta.%d.kmers", cmdline->contaminant_dir, con, cmdline->kmer_size);
+        printf("      from filename %s\n", filename);
+        
+        stats->contaminant_ids[stats->n_contaminants] = malloc(strlen(con) + 1);
+        
+        if (stats->contaminant_ids[stats->n_contaminants]) {
+            strcpy(stats->contaminant_ids[stats->n_contaminants], con);
+        } else {
+            printf("Error: can't allocate memory for string!");
+            exit(1);
         }
+        
+        stats->contaminant_kmers[stats->n_contaminants] = load_kmer_library(filename, stats->n_contaminants, cmdline->kmer_size, contaminant_hash);
+        
+        stats->n_contaminants++;
+        con = strtok(NULL, ",");
     }
 }
-            
+
 char* get_leafname(char* pathname)
 {
     char* ptr = pathname + strlen(pathname) - 1;
@@ -371,19 +320,9 @@ int main(int argc, char* argv[])
     CmdLine cmdline;
     KmerStats kmer_stats;
     
-    //Element e;
-    //int i;
-    
-    //for (i=0; i<MAX_CONTAMINANTS; i++) {
-    //    element_set_contaminant_bit(&e, i);
-    //}
-    //exit(0);
-    
     time(&start);
     
     printf("\nkONTAMINANT v%s\n\n", VERSION);
-    
-    printf("Max contaminants: %d\n\n", MAX_CONTAMINANTS);
     
     initialise_cmdline(&cmdline);
     parse_command_line(argc, argv, &cmdline);

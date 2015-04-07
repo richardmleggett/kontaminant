@@ -93,7 +93,6 @@ void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line)
     }
 
     for (i=0; i<MAX_CONTAMINANTS; i++) {
-        stats->unique_kmers[i] = 0;
         for (j=0; j<MAX_CONTAMINANTS; j++) {
             stats->kmers_in_common[i][j] = 0;
         }
@@ -125,8 +124,6 @@ void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line)
 void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCounts* both_stats)
 {
     int i;
-    int largest_contaminant = 0;
-    int largest_kmers = 0;
     
     stats->read[r]->number_of_reads++;
     
@@ -136,11 +133,6 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
     if (counts->kmers_loaded > 0) {
         for (i=0; i<stats->n_contaminants; i++) {
             if (counts->kmers_from_contaminant[i] > 0) {
-                if (counts->kmers_from_contaminant[i] > largest_kmers) {
-                    largest_kmers = counts->kmers_from_contaminant[i];
-                    largest_contaminant = i;
-                }
-                
                 stats->read[r]->k1_contaminated_reads_by_contaminant[i]++;
                 both_stats->k1_contaminated_reads_by_contaminant[i]++;
                 if (counts->contaminants_detected == 1) {
@@ -152,12 +144,6 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
         
         stats->read[r]->k1_contaminated_reads++;
         both_stats->k1_contaminated_reads++;
-    }
-    
-    if (largest_kmers == 0) {
-        stats->read[r]->reads_unclassified++;
-    } else {
-        stats->read[r]->reads_with_highest_contaminant[largest_contaminant]++;
     }
     
     if (counts->kmers_loaded > stats->kmer_threshold) {
@@ -414,12 +400,8 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
     int i, j;
     FILE* fp_abs;
     FILE* fp_pc;
-    FILE* fp_abs_unique;
-    FILE* fp_pc_unique;
     char* filename_abs;
     char* filename_pc;
-    char* filename_pc_unique;
-    char* filename_abs_unique;
     
     if (stats->n_contaminants < 2) {
         return;
@@ -441,20 +423,6 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
     }
     sprintf(filename_pc, "%skmer_similarity_pc.txt", cmd_line->output_prefix);
 
-    filename_abs_unique = malloc(strlen(cmd_line->output_prefix)+32);
-    if (!filename_abs_unique) {
-        printf("Error: No room to store filename!\n");
-        exit(1);
-    }
-    sprintf(filename_abs_unique, "%skmer_unique_absolute.txt", cmd_line->output_prefix);
-    
-    filename_pc_unique = malloc(strlen(cmd_line->output_prefix)+32);
-    if (!filename_pc_unique) {
-        printf("Error: No room to store filename!\n");
-        exit(1);
-    }
-    sprintf(filename_pc_unique, "%skmer_unique_pc.txt", cmd_line->output_prefix);
-    
     fp_abs = fopen(filename_abs, "w");
     if (!fp_abs) {
         printf("Error: can't open %s\n", filename_abs);
@@ -471,23 +439,7 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
         printf("Opened %s\n", filename_pc);
     }
 
-    fp_abs_unique = fopen(filename_abs_unique, "w");
-    if (!fp_abs_unique) {
-        printf("Error: can't open %s\n", filename_abs_unique);
-        exit(1);
-    } else {
-        printf("Opened %s\n", filename_abs_unique);
-    }
-    
-    fp_pc_unique = fopen(filename_pc_unique, "w");
-    if (!fp_pc_unique) {
-        printf("Error: can't open %s\n", filename_pc_unique);
-        exit(1);
-    } else {
-        printf("Opened %s\n", filename_pc_unique);
-    }
-    
-    void check_kmers_in_common(Element* node) {
+    void check_kmer(Element* node) {
         int i, j;
         for (i=0; i<(stats->n_contaminants); i++) {
             if (element_get_contaminant_bit(node, i) > 0) {
@@ -503,29 +455,7 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
         }
     }
     
-    hash_table_traverse(&check_kmers_in_common, hash);
-    
-    void check_unique_kmers(Element* node) {
-        int i;
-        int count = 0;
-        int index = 0;
-        
-        for (i=0; i<(stats->n_contaminants); i++) {
-            if (element_get_contaminant_bit(node, i) > 0) {
-                index = i;
-                count++;
-                if (count > 1) {
-                    break;
-                }
-            }
-        }
-        
-        if (count == 1) {
-            stats->unique_kmers[index]++;
-        }
-    }
-
-    hash_table_traverse(&check_unique_kmers, hash);
+    hash_table_traverse(&check_kmer, hash);
     
     printf("\n%15s ", "");
     fprintf(fp_abs, "Contaminant");
@@ -534,14 +464,10 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
         printf(" %15s", stats->contaminant_ids[i]);
         fprintf(fp_abs, "\t%s", stats->contaminant_ids[i]);
         fprintf(fp_pc, "\t%s", stats->contaminant_ids[i]);
-        fprintf(fp_abs_unique, "\t%s", stats->contaminant_ids[i]);
-        fprintf(fp_pc_unique, "\t%s", stats->contaminant_ids[i]);
     }
     printf("\n");
     fprintf(fp_abs, "\n");
     fprintf(fp_pc, "\n");
-    fprintf(fp_abs_unique, "\n");
-    fprintf(fp_pc_unique, "\n");
     
     for (i=0; i<stats->n_contaminants; i++) {
         printf("%15s", stats->contaminant_ids[i]);
@@ -563,23 +489,6 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
         fprintf(fp_pc, "\n");
     }
 
-    for (i=0; i<stats->n_contaminants; i++) {
-        double pc = 0;
-        
-        if (stats->unique_kmers[i] > 0) {
-            pc = (100.0 * (double)stats->unique_kmers[i]) / (double)stats->contaminant_kmers[i];
-        }
-        
-        if (i > 0) {
-            fprintf(fp_abs_unique, "\t");
-            fprintf(fp_pc_unique, "\t");
-        }
-        fprintf(fp_abs_unique, "%d", stats->unique_kmers[i]);
-        fprintf(fp_pc_unique, "%.2f", pc);
-    }
-    
-    fclose(fp_abs_unique);
-    fclose(fp_pc_unique);
     fclose(fp_abs);
     fclose(fp_pc);
 }
@@ -625,21 +534,5 @@ void kmer_stats_write_progress(KmerStats* stats, CmdLine* cmd_line)
         } else {
             printf("Error: can't open %s\n", filename);
         }
-
-        sprintf(filename, "%s/largest_contaminant_r%d.txt", cmd_line->progress_dir, r+1);
-        fp = fopen(filename, "w");
-        if (fp) {
-            int i;
-            printf("Opening %s\n", filename);
-            fprintf(fp, "name\tvalue\n");
-            for (i=0; i<stats->n_contaminants; i++) {
-                fprintf(fp, "%s\t%d\n", stats->contaminant_ids[i], stats->read[r]->reads_with_highest_contaminant[i]);
-            }
-            fprintf(fp, "Unclassified\t%d\n", stats->read[r]->reads_unclassified);
-            fclose(fp);
-        } else {
-            printf("Error: can't open %s\n", filename);
-        }
-    
     }
 }
