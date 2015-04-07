@@ -39,7 +39,7 @@
 //#include <binary_kmer.h>
 #include <flags.h>
 
-#define CONTAMINANT_FIELDS 0Op
+#define CONTAMINANT_FIELDS 0
 #define MAX_CONTAMINANTS ((CONTAMINANT_FIELDS*32)+(32 - FLAG_BITS_USED))
 
 typedef char Edges;
