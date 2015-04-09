@@ -239,6 +239,8 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
     KmerStatsReadCounts tmp_stats;
     time_t time_previous = 0;
     time_t time_now = 0;
+    int i;
+    FILE* fp_read_summary = 0;
 
     assert(fra != NULL);
     assert(fra->KmerHash != NULL);
@@ -251,6 +253,14 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
     
     // Allocate new sliding window structure
     windows = binary_kmer_sliding_window_set_new_from_read_length(kmer_hash->kmer_size, fra->max_read_length);
+    
+    // Open read summary file
+    if (cmd_line->read_summary_file != 0) {
+        fp_read_summary = fopen(cmd_line->read_summary_file, "a");
+        if (!fp_read_summary) {
+            printf("Error: can't open read summary file %s\n", cmd_line->read_summary_file);
+        }
+    }
     
     // Keep reading...
 	while ((entry_length = file_reader_wrapper(frw)) && keep_reading)
@@ -274,6 +284,15 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
             // If we didn't get a full entry, then shift last kmer to start of sequence...
             shift_last_kmer_to_start_of_sequence(frw->seq, entry_length, kmer_hash->kmer_size);
         } else {
+            if (fp_read_summary) {
+                fprintf(fp_read_summary, "%s", frw->seq->name);
+                fprintf(fp_read_summary, "\t%d", counts.contaminants_detected);
+                fprintf(fp_read_summary, "\t%d", counts.kmers_loaded);
+                for (i=0; i<stats->n_contaminants; i++) {
+                    fprintf(fp_read_summary, "\t%d", counts.kmers_from_contaminant[i]);
+                }
+                fprintf(fp_read_summary, "\n");
+            }
             hash_table_add_number_of_reads(1, kmer_hash);
             update_stats(0, &counts, stats, &tmp_stats);
             initialise_kmer_counts(stats->n_contaminants, &counts);
@@ -297,6 +316,10 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
     free_sequence(&frw->seq);
     frw->seq = NULL;
     binary_kmer_free_kmers_set(&windows);
+
+    if (fp_read_summary) {
+        fclose(fp_read_summary);
+    }
     
     return seq_length;
 }
@@ -320,9 +343,11 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
     KmerSlidingWindowSet* windows[2];
     int number_of_files = 1;
     boolean filter_read = false;
-    int i;
+    int i, j;
     time_t time_previous = 0;
     time_t time_now = 0;
+    FILE* fp_read_summary = 0;
+    int nr = 0;
 
     // Get hash table and initialise kmer counts structure
     kmer_hash = fra_1->KmerHash;
@@ -369,6 +394,14 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
         seq_length[i] = 0;
         entry_length[i] = 0;
     }
+
+    // Open read summary file
+    if (cmd_line->read_summary_file != 0) {
+        fp_read_summary = fopen(cmd_line->read_summary_file, "a");
+        if (!fp_read_summary) {
+            printf("Error: can't open read summary file %s\n", cmd_line->read_summary_file);
+        }
+    }
     
     // Keep reading...
 	while (keep_reading)
@@ -382,7 +415,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
         
         for (i=0; i<number_of_files; i++) {
             int nkmers;
-
+            
             initialise_kmer_counts(stats->n_contaminants, &(counts[i]));
             
             // Get next read
@@ -402,15 +435,27 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                 printf("Error: Line length too long.\n");
                 return 0;
             }
-
+            
             if (nkmers == 0) {
                 // Bad read
                 fra[i]->bad_reads++;
             } else {
                 // Load kmers
                 kmer_hash_load_sliding_windows(&previous_node, kmer_hash, true, fra[i], kmer_hash->kmer_size, windows[i], i, stats, &(counts[i]));
+                
+                if (fp_read_summary) {
+                    fprintf(fp_read_summary, "%s", frw[i]->seq->name);
+                    fprintf(fp_read_summary, "\t%d", counts[i].contaminants_detected);
+                    fprintf(fp_read_summary, "\t%d", counts[i].kmers_loaded);
+                    for (j=0; j<stats->n_contaminants; j++) {
+                        fprintf(fp_read_summary, "\t%d", counts[i].kmers_from_contaminant[j]);
+                    }
+                    fprintf(fp_read_summary, "\n");
+                }
+                
                 hash_table_add_number_of_reads(1, kmer_hash);
                 update_stats(i, &(counts[i]), stats, stats_both_reads);
+                nr++;
             }
         }
         
@@ -419,7 +464,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
             // Check for not getting both reads
             if (((entry_length[0] == 0) && (entry_length[1] > 0)) ||
                 ((entry_length[1] == 0) && (entry_length[0] > 0))) {
-                printf("Error: differing number of entries in files.\n");
+                printf("Error: differing number of entries in files (%d %d %d).\n", nr, entry_length[0], entry_length[1]);
                 return 0;
             }
 
@@ -477,6 +522,10 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
         if (frw[i]->removed_fp) {
             fclose(frw[i]->removed_fp);
         }
+    }
+
+    if (fp_read_summary) {
+        fclose(fp_read_summary);
     }
     
     return seq_length[0] + seq_length[1];

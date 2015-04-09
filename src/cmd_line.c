@@ -58,6 +58,7 @@ void initialise_cmdline(CmdLine* c)
     c->progress_delay = 60;
     c->filter_any_threshold = 1;
     c->filter_unique_threshold = 0;
+    c->read_summary_file = 0;
 }
 
 /*----------------------------------------------------------------------*
@@ -74,23 +75,28 @@ void usage(void)
            "    [-s | --screen] invokes screening.\n" \
            "    [-f | --filter] invokes filtering.\n" \
            "    [-i | --index] indexes a reference.\n" \
-           "\nOptions:\n" \
-           "    [-1 | --input_one] Input R1 file (or reference FASTA).\n" \
-           "    [-2 | --input_two] Input R2 file.\n" \
-           "    [-b | --mem_width] Size of hash table buckets (default 100).\n" \
-           "    [-n | --mem_height] Number of buckets in hash table in bits (default 20, this is a power of 2, ie 2^mem_height).\n" \
-           "    [-c | --contaminants] List of contaminants to screen/filter.\n" \
-           "    [-d | --contaminant_dir] Contaminant library directory.\n" \
-           "    [-e | --contaminants_file] Filename of file containing list of contaminants to screen/filer.\n" \
-           "    [-g | --file_format] File format FASTA or FASTQ (default FASTQ).\n" \
+           "Kmer options:\n" \
            "    [-k | --kmer_size] Kmer size (default 21).\n" \
+           "    [-t | --threshold] Kmer threshold (default 10).\n" \
+           "    [-y | --subsample_ratio] Ratio of reads to sample (default 0.1).\n" \
+           "Input options:\n" \
+           "    [-1 | --input_one] Input R1 file (or reference FASTA for indexing).\n" \
+           "    [-2 | --input_two] Input R2 file.\n" \
+           "    [-g | --file_format] Input file format FASTA or FASTQ (default FASTQ).\n" \
+           "    [-z | --file_of_files] Input file of files (for batch processing - instead of -1 and -2).\n" \
+           "Output options:\n" \
+           "    [-j | --read_summary] Read summary file.\n" \
            "    [-o | --output_prefix] Output prefix (filtering only).\n" \
            "    [-p | --progress] Name of directory for streaming progress page.\n"
            "    [-r | --removed_prefix] Removed reads prefix (filtering only).\n" \
-           "    [-t | --threshold] Kmer threshold (default 10).\n" \
            "    [-x | --keep_contaminated_reads] Save contaminated reads into separate file.\n" \
-           "    [-y | --subsample_ratio] Ratio of reads to sample (default 0.1).\n" \
-           "    [-z | --file_of_files] Input file of files (for batch processing).\n" \
+           "Contaminant options:\n" \
+           "    [-d | --contaminant_dir] Contaminant library directory.\n" \
+           "    [-c | --contaminants] List of contaminants to screen/filter, OR\n" \
+           "    [-e | --contaminants_file] Filename of file containing list of contaminants to screen/filer.\n" \
+           "Memory options:\n" \
+           "    [-b | --mem_width] Size of hash table buckets (default 100).\n" \
+           "    [-n | --mem_height] Number of buckets in hash table in bits (default 20, this is a power of 2, ie 2^mem_height).\n" \
            "\nComments/suggestions to richard.leggett@tgac.ac.uk\n" \
            "\n");
 }
@@ -115,6 +121,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"file_format", required_argument, NULL, 'g'},
         {"help", no_argument, NULL, 'h'},
         {"index", no_argument, NULL, 'i'},
+        {"read_summary", no_argument, NULL, 'j'},
         {"kmer_size", required_argument, NULL, 'k'},
         {"mem_height", required_argument, NULL, 'n'},
         {"output_prefix", required_argument, NULL, 'o'},
@@ -136,7 +143,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hik:n:so:p:r:t:u:xyz:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hij:k:n:so:p:r:t:u:xyz:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case '1':
@@ -246,6 +253,19 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     c->run_type = DO_INDEX;
                 } else {
                     printf("Error: You must specify either screening, filtering or indexing.\n");
+                    exit(1);
+                }
+                break;
+            case 'j':
+                if (optarg==NULL) {
+                    printf("Error: [-j | --read_summary] option requires an argument.\n");
+                    exit(1);
+                }
+                c->read_summary_file = malloc(strlen(optarg) + 1);
+                if (c->read_summary_file) {
+                    strcpy(c->read_summary_file, optarg);
+                } else {
+                    printf("Error: can't allocate memory for string.\n");
                     exit(1);
                 }
                 break;

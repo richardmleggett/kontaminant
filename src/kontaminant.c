@@ -361,6 +361,33 @@ void process_files(HashTable* contaminant_hash, KmerStats* kmer_stats, CmdLine* 
 }
 
 /*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void initialise_output_files(CmdLine* cmdline, KmerStats* stats)
+{
+    if (cmdline->read_summary_file != 0) {
+        FILE* fp = fopen(cmdline->read_summary_file, "w");
+        int i;
+        
+        if (fp) {
+            printf("\nOpened %s\n", cmdline->read_summary_file);
+            fprintf(fp, "ID\tnCons\tnKs");
+            for (i=0; i<stats->n_contaminants; i++) {
+                fprintf(fp, "\t%s", stats->contaminant_ids[i]);
+            }
+            fprintf(fp, "\n");
+            fclose(fp);
+        } else {
+            printf("Error: can't open %s\n", cmdline->read_summary_file);
+            cmdline->read_summary_file = 0;
+        }
+    }
+}
+
+/*----------------------------------------------------------------------*
  * Function:   main
  *----------------------------------------------------------------------*/
 int main(int argc, char* argv[])
@@ -398,6 +425,7 @@ int main(int argc, char* argv[])
         dump_kmer_hash(&cmdline, contaminant_hash);
     } else if ((cmdline.run_type == DO_SCREEN) || (cmdline.run_type == DO_FILTER)) {
         load_contamints(contaminant_hash, &kmer_stats, &cmdline);
+        initialise_output_files(&cmdline, &kmer_stats);
         printf("\n");
         hash_table_print_stats(contaminant_hash);
         kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats, &cmdline);

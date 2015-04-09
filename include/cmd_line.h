@@ -41,6 +41,7 @@ typedef struct {
     double subsample_ratio;
     int filter_unique_threshold;
     int filter_any_threshold;
+    char* read_summary_file;
 } CmdLine;
 
 void initialise_cmdline(CmdLine* c);
