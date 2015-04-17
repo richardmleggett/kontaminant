@@ -38,7 +38,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.6"
+#define VERSION "2.0.6b"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -260,7 +260,7 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
             }
 
             if (cmdline->removed_prefix) {
-                fra[i]->removed_filename = malloc(strlen(filenames[i]) + strlen(cmdline->output_prefix) + 1); 
+                fra[i]->removed_filename = malloc(strlen(filenames[i]) + strlen(cmdline->removed_prefix) + 1);
 
                 if (!fra[i]->removed_filename) {
                     printf("Error: Can't get memory for output filenames\n");

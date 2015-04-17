@@ -70,7 +70,7 @@ void initialise_cmdline(CmdLine* c)
 void usage(void)
 {
     printf("k-mer based screening and filtering of reads\n" \
-           "\nSyntax: kontaminant [-s|-f|-i] [options]\n" \
+           "\nSyntax: kontaminant <-s|-f|-i> [options]\n" \
            "\nWhere:\n" \
            "    [-s | --screen] invokes screening.\n" \
            "    [-f | --filter] invokes filtering.\n" \
