@@ -49,6 +49,7 @@ void initialise_kmer_counts(int n, KmerCounts* counts)
     counts->contaminants_detected = 0;
     for (i=0; i<MAX_CONTAMINANTS; i++) {
         counts->kmers_from_contaminant[i] = 0;
+        counts->unique_kmers_from_contaminant[i] = 0;
     }
 }
 
@@ -89,10 +90,17 @@ void kmer_hash_load_sliding_windows(Element **previous_node, HashTable* kmer_has
                     int c;
                     
                     if (stats != NULL) {
+                        int contaminant_count = 0;
+                        int contaminant_index = 0;
+                        
                         /* Go through all contaminants */
                         for (c=0; c<counts->n_contaminants; c++) {
                             /* Check if kmer is found in this contaminant */
                             if (element_get_contaminant_bit(current_node, c) > 0) {
+                                /* Count how many contaminants have this kmer */
+                                contaminant_count++;
+                                contaminant_index = c;
+                                
                                 /* If the count of kmers from this contaminant is 0, then this is the first kmer we've
                                    seen from this contaminant, so we update the count of number of contaminants seen */
                                 if (counts->kmers_from_contaminant[c] == 0) {
@@ -112,6 +120,10 @@ void kmer_hash_load_sliding_windows(Element **previous_node, HashTable* kmer_has
                                     stats->read[read]->contaminant_kmers_seen[c]++;
                                 }
                             }
+                        }
+                        
+                        if (contaminant_count == 1) {
+                            counts->unique_kmers_from_contaminant[contaminant_index]++;
                         }
                     }
                     
@@ -219,6 +231,8 @@ KmerFileReaderWrapperArgs* get_kmer_file_reader_wrapper(short kmer_size, KmerFil
     return frw;
 }
 
+
+
 /*----------------------------------------------------------------------*
  * Function:
  * Purpose:
@@ -284,6 +298,9 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
             // If we didn't get a full entry, then shift last kmer to start of sequence...
             shift_last_kmer_to_start_of_sequence(frw->seq, entry_length, kmer_hash->kmer_size);
         } else {
+            hash_table_add_number_of_reads(1, kmer_hash);
+            update_stats(0, &counts, stats, &tmp_stats);
+
             if (fp_read_summary) {
                 fprintf(fp_read_summary, "%s", frw->seq->name);
                 fprintf(fp_read_summary, "\t%d", counts.contaminants_detected);
@@ -291,10 +308,13 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
                 for (i=0; i<stats->n_contaminants; i++) {
                     fprintf(fp_read_summary, "\t%d", counts.kmers_from_contaminant[i]);
                 }
-                fprintf(fp_read_summary, "\n");
+                if (counts.assigned_contaminant == -1) {
+                    fprintf(fp_read_summary, "\tUnassigned\n");
+                } else {
+                    fprintf(fp_read_summary, "\t%s\n", stats->contaminant_ids[counts.assigned_contaminant]);
+                }
             }
-            hash_table_add_number_of_reads(1, kmer_hash);
-            update_stats(0, &counts, stats, &tmp_stats);
+
             initialise_kmer_counts(stats->n_contaminants, &counts);
         }
         

@@ -117,8 +117,8 @@ void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line)
 }
 
 /*----------------------------------------------------------------------*
- * Function:
- * Purpose:
+ * Function:   update_stats
+ * Purpose:    Update overall read stats from a KmerCounts read structure
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
@@ -156,8 +156,10 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
     
     if (largest_kmers == 0) {
         stats->read[r]->reads_unclassified++;
+        counts->assigned_contaminant = -1;
     } else {
         stats->read[r]->reads_with_highest_contaminant[largest_contaminant]++;
+        counts->assigned_contaminant = largest_contaminant;
     }
     
     if (counts->kmers_loaded > stats->kmer_threshold) {
