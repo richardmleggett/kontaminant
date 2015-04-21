@@ -127,6 +127,8 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
     int i;
     int largest_contaminant = 0;
     int largest_kmers = 0;
+    int unique_largest_contaminant = 0;
+    int unique_largest_kmers = 0;
     
     stats->read[r]->number_of_reads++;
     
@@ -139,6 +141,11 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
                 if (counts->kmers_from_contaminant[i] > largest_kmers) {
                     largest_kmers = counts->kmers_from_contaminant[i];
                     largest_contaminant = i;
+                }
+
+                if (counts->unique_kmers_from_contaminant[i] > unique_largest_kmers) {
+                    unique_largest_kmers = counts->unique_kmers_from_contaminant[i];
+                    unique_largest_contaminant = i;
                 }
                 
                 stats->read[r]->k1_contaminated_reads_by_contaminant[i]++;
@@ -160,6 +167,12 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
     } else {
         stats->read[r]->reads_with_highest_contaminant[largest_contaminant]++;
         counts->assigned_contaminant = largest_contaminant;
+    }
+    
+    if (unique_largest_kmers == 0) {
+        counts->unique_assigned_contaminant = -1;
+    } else {
+        counts->unique_assigned_contaminant = unique_largest_contaminant;
     }
     
     if (counts->kmers_loaded > stats->kmer_threshold) {

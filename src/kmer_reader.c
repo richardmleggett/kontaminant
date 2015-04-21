@@ -313,6 +313,16 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
                 } else {
                     fprintf(fp_read_summary, "\t%s\n", stats->contaminant_ids[counts.assigned_contaminant]);
                 }
+
+                for (i=0; i<stats->n_contaminants; i++) {
+                    fprintf(fp_read_summary, "\t%d", counts.unique_kmers_from_contaminant[i]);
+                }
+                if (counts.unique_assigned_contaminant == -1) {
+                    fprintf(fp_read_summary, "\tUnassigned\n");
+                } else {
+                    fprintf(fp_read_summary, "\t%s\n", stats->contaminant_ids[counts.unique_assigned_contaminant]);
+                }
+            
             }
 
             initialise_kmer_counts(stats->n_contaminants, &counts);

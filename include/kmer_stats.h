@@ -78,6 +78,7 @@ typedef struct {
     uint32_t kmers_from_contaminant[MAX_CONTAMINANTS];
     uint32_t unique_kmers_from_contaminant[MAX_CONTAMINANTS];
     uint32_t assigned_contaminant;
+    uint32_t unique_assigned_contaminant;
 } KmerCounts;
 
 void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line);
