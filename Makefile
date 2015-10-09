@@ -12,8 +12,6 @@ $(warning $n$nNOTE On Mac OS X, you must compile using GCC. If you have not alre
 #CC=gcc
 CC=/usr/local/Cellar/gcc/4.9.2_1/bin/gcc-4.9
 
-# On my MAC, I use CC=~/gcc/bin/gcc
-
 # On older versions of XCode, it was necessary to include the following
 #MACFLAG = -fnested-functions -L/opt/local/lib/ 
 endif
