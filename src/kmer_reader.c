@@ -309,20 +309,22 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
                     fprintf(fp_read_summary, "\t%d", counts.kmers_from_contaminant[i]);
                 }
                 if (counts.assigned_contaminant == -1) {
-                    fprintf(fp_read_summary, "\tUnassigned\n");
+                    fprintf(fp_read_summary, "\tUnassigned");
                 } else {
-                    fprintf(fp_read_summary, "\t%s\n", stats->contaminant_ids[counts.assigned_contaminant]);
+                    fprintf(fp_read_summary, "\t%s", stats->contaminant_ids[counts.assigned_contaminant]);
                 }
 
                 for (i=0; i<stats->n_contaminants; i++) {
                     fprintf(fp_read_summary, "\t%d", counts.unique_kmers_from_contaminant[i]);
                 }
                 if (counts.unique_assigned_contaminant == -1) {
-                    fprintf(fp_read_summary, "\tUnassigned\n");
+                    fprintf(fp_read_summary, "\tUnassigned");
                 } else {
-                    fprintf(fp_read_summary, "\t%s\n", stats->contaminant_ids[counts.unique_assigned_contaminant]);
+                    fprintf(fp_read_summary, "\t%s", stats->contaminant_ids[counts.unique_assigned_contaminant]);
                 }
-            
+                
+                fprintf(fp_read_summary, "\n");
+                fflush(fp_read_summary);
             }
 
             initialise_kmer_counts(stats->n_contaminants, &counts);
@@ -437,6 +439,8 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
 	while (keep_reading)
 	{
         KmerStatsReadCounts* stats_both_reads;
+        int k_count = 0;
+        
         stats_both_reads=calloc(1, sizeof(KmerStatsReadCounts));
         if (!stats_both_reads) {
             printf("Error: Can't get memory for stats\n");
@@ -507,10 +511,15 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
         
         // Keep or filter?
         filter_read=false;
+        k_count = 0;
         for (i=0; i<number_of_files; i++) {
-            if (counts[i].kmers_loaded > 0) {
-                filter_read = true;
-            }
+            k_count += counts[i].kmers_loaded;
+        }
+        
+        if (k_count >= cmd_line->kmer_threshold) {
+            filter_read = true;
+        } else {
+            filter_read = false;
         }
         
         // Output reads
