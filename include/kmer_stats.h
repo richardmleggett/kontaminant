@@ -32,35 +32,42 @@ typedef struct {
 typedef struct {
     uint32_t number_of_reads;
     
-    // Counts for k1 - reads with 1 or more kmers
-    uint32_t both_k1_contaminated_reads;
-    double   both_k1_contaminaned_reads_pc;
-    uint32_t either_k1_contaminated_reads;
-    double   either_k1_contaminaned_reads_pc;
-    uint32_t k1_contaminated_reads_by_contaminant[MAX_CONTAMINANTS];
-    double   k1_contaminated_reads_by_contaminant_pc[MAX_CONTAMINANTS];
-    uint32_t k1_unique_contaminated_reads_by_contaminant[MAX_CONTAMINANTS];
-    double   k1_unique_contaminated_reads_by_contaminant_pc[MAX_CONTAMINANTS];
-    uint32_t k1_both_reads_contaminated;
-    double   k1_both_reads_contaminated_pc;
-    
-    // Counts for kn - reads with n or more kmers (n == kmer_threshold)
-    uint32_t both_kn_contaminated_reads;
-    double   both_kn_contaminaned_reads_pc;
-    uint32_t either_kn_contaminated_reads;
-    double   either_kn_contaminaned_reads_pc;
-    uint32_t kn_contaminated_reads_by_contaminant[MAX_CONTAMINANTS];
-    double   kn_contaminated_reads_by_contaminant_pc[MAX_CONTAMINANTS];
-    uint32_t kn_unique_contaminated_reads_by_contaminant[MAX_CONTAMINANTS];
-    double   kn_unique_contaminated_reads_by_contaminant_pc[MAX_CONTAMINANTS];
-
     // Contaminant kmers seen (ie. number of reference kmers found in reads)
     uint32_t contaminant_kmers_seen[MAX_CONTAMINANTS];
     double   contaminant_kmers_seen_pc[MAX_CONTAMINANTS];
+
+    uint32_t threshold_passed_reads;
+    double   threshold_passed_reads_pc;
+    uint32_t k1_both_reads_not_threshold;
+    double   k1_both_reads_not_threshold_pc;
+    uint32_t k1_either_read_not_threshold;
+    double   k1_either_read_not_threshold_pc;
+    
+    uint32_t threshold_passed_reads_unique;
+    double   threshold_passed_reads_pc_unique;
+    uint32_t k1_both_reads_not_threshold_unique;
+    double   k1_both_reads_not_threshold_pc_unique;
+    uint32_t k1_either_read_not_threshold_unique;
+    double   k1_either_read_not_threshold_pc_unique;
+    
+    uint32_t threshold_passed_reads_by_contaminant[MAX_CONTAMINANTS];
+    double   threshold_passed_reads_by_contaminant_pc[MAX_CONTAMINANTS];
+    uint32_t k1_both_reads_not_threshold_by_contaminant[MAX_CONTAMINANTS];
+    double   k1_both_reads_not_threshold_by_contaminant_pc[MAX_CONTAMINANTS];
+    uint32_t k1_either_read_not_threshold_by_contaminant[MAX_CONTAMINANTS];
+    double   k1_either_read_not_threshold_by_contaminant_pc[MAX_CONTAMINANTS];
+    
+    uint32_t threshold_passed_reads_unique_by_contaminant[MAX_CONTAMINANTS];
+    double   threshold_passed_reads_unique_by_contaminant_pc[MAX_CONTAMINANTS];
+    uint32_t k1_both_reads_not_threshold_unique_by_contaminant[MAX_CONTAMINANTS];
+    double   k1_both_reads_not_threshold_unique_by_contaminant_pc[MAX_CONTAMINANTS];
+    uint32_t k1_either_read_not_threshold_unique_by_contaminant[MAX_CONTAMINANTS];
+    double   k1_either_read_not_threshold_unique_by_contaminant_pc[MAX_CONTAMINANTS];
+    
+    boolean filter_read;
 } KmerStatsBothReads;
 
 typedef struct {
-    uint32_t kmer_threshold;
     uint32_t n_contaminants;
     char* contaminant_ids[MAX_CONTAMINANTS];
     uint32_t contaminant_kmers[MAX_CONTAMINANTS];
@@ -83,8 +90,8 @@ typedef struct {
 
 void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line);
 void kmer_stats_calculate(KmerStats* stats);
-void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCounts* both_stats);
-void update_stats_for_both(KmerStats* stats, KmerStatsReadCounts* both_stats);
-void kmer_stats_report_to_screen(KmerStats* stats);
+void update_stats(int r, KmerCounts* counts, KmerStats* stats, CmdLine* cmd_line);
+boolean update_stats_for_both(KmerStats* stats, CmdLine* cmd_line, KmerCounts* counts_a, KmerCounts* counts_b);
+void kmer_stats_report_to_screen(KmerStats* stats, CmdLine* cmd_line);
 void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, CmdLine* cmd_line);
 void kmer_stats_write_progress(KmerStats* stats, CmdLine* cmd_line);

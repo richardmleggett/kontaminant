@@ -61,15 +61,24 @@ void kmer_stats_both_reads_initialise(KmerStatsBothReads *r)
     int i;
     
     r->number_of_reads = 0;
-    r->both_k1_contaminated_reads = 0;
-    r->either_k1_contaminated_reads = 0;
-    r->both_kn_contaminated_reads = 0;
-    r->either_kn_contaminated_reads = 0;
+
+    r->threshold_passed_reads = 0;
+    r->k1_both_reads_not_threshold = 0;
+    r->k1_either_read_not_threshold = 0;
+    r->threshold_passed_reads_unique = 0;
+    r->k1_both_reads_not_threshold_unique = 0;
+    r->k1_either_read_not_threshold_unique = 0;
     
     for (i=0; i<MAX_CONTAMINANTS; i++) {
-        r->k1_contaminated_reads_by_contaminant[i] = 0;
-        r->k1_unique_contaminated_reads_by_contaminant[i] = 0;
+        r->threshold_passed_reads_by_contaminant[i] = 0;
+        r->k1_both_reads_not_threshold_by_contaminant[i] = 0;
+        r->k1_either_read_not_threshold_by_contaminant[i] = 0;
+        r->threshold_passed_reads_unique_by_contaminant[i] = 0;
+        r->k1_both_reads_not_threshold_unique_by_contaminant[i] = 0;
+        r->k1_either_read_not_threshold_unique_by_contaminant[i] = 0;
     }
+    
+    r->filter_read = false;
 }
 
 /*----------------------------------------------------------------------*
@@ -86,7 +95,6 @@ void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line)
 
     stats->n_contaminants = 0;
     stats->number_of_files = 0;
-    stats->kmer_threshold = cmd_line->kmer_threshold;
     
     for (i=0; i<MAX_CONTAMINANTS; i++) {
         stats->contaminant_kmers[i] = 0;
@@ -122,7 +130,7 @@ void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line)
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCounts* both_stats)
+void update_stats(int r, KmerCounts* counts, KmerStats* stats, CmdLine* cmd_line)
 {
     int i;
     int largest_contaminant = 0;
@@ -136,59 +144,66 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
     stats->read[r]->contaminated_kmers_per_read[counts->kmers_loaded < MAX_READ_LENGTH? counts->kmers_loaded:MAX_READ_LENGTH]++;
     
     if (counts->kmers_loaded > 0) {
+        // Go through all contaminants
         for (i=0; i<stats->n_contaminants; i++) {
+            // If we got a kmer...
             if (counts->kmers_from_contaminant[i] > 0) {
+                // Have we got more kmers for this contaminant than for any others?
                 if (counts->kmers_from_contaminant[i] > largest_kmers) {
                     largest_kmers = counts->kmers_from_contaminant[i];
                     largest_contaminant = i;
                 }
 
+                // Have we got more unique kmers for this contaminant than for any others?
                 if (counts->unique_kmers_from_contaminant[i] > unique_largest_kmers) {
                     unique_largest_kmers = counts->unique_kmers_from_contaminant[i];
                     unique_largest_contaminant = i;
                 }
                 
+                // Update the count of contaminanted reads
                 stats->read[r]->k1_contaminated_reads_by_contaminant[i]++;
-                both_stats->k1_contaminated_reads_by_contaminant[i]++;
+                
+                // If only one contaminant detected, then we can safely update the number of k1 unique reads
                 if (counts->contaminants_detected == 1) {
                     stats->read[r]->k1_unique_contaminated_reads_by_contaminant[i]++;
-                    both_stats->k1_unique_contaminated_reads_by_contaminant[i]++;
                 }
             }
         }
         
+        // Update number of k1 (not necessarily unique) reads
         stats->read[r]->k1_contaminated_reads++;
-        both_stats->k1_contaminated_reads++;
     }
     
+    // If we didn't find any kmers, then this is unclassified
     if (largest_kmers == 0) {
         stats->read[r]->reads_unclassified++;
         counts->assigned_contaminant = -1;
     } else {
+        // But if we did, store the higest contaminant (the "assigned" contaminant)
         stats->read[r]->reads_with_highest_contaminant[largest_contaminant]++;
         counts->assigned_contaminant = largest_contaminant;
     }
     
+    // If we didn't find any unqique kmers, then...
     if (unique_largest_kmers == 0) {
         counts->unique_assigned_contaminant = -1;
     } else {
+        // But if we did...
         counts->unique_assigned_contaminant = unique_largest_contaminant;
     }
     
-    if (counts->kmers_loaded > stats->kmer_threshold) {
+    // If we got over our single read kmer threshold...
+    if (counts->kmers_loaded >= cmd_line->kmer_threshold_read) {
         for (i=0; i<stats->n_contaminants; i++) {
-            if (counts->kmers_from_contaminant[i] > 0) {
+            if (counts->kmers_from_contaminant[i] > cmd_line->kmer_threshold_read) {
                 stats->read[r]->kn_contaminated_reads_by_contaminant[i]++;
-                both_stats->kn_contaminated_reads_by_contaminant[i]++;
                 if (counts->contaminants_detected == 1) {
                     stats->read[r]->kn_unique_contaminated_reads_by_contaminant[i]++;
-                    both_stats->kn_unique_contaminated_reads_by_contaminant[i]++;
                 }
             }
         }
         
         stats->read[r]->kn_contaminated_reads++;
-        both_stats->kn_contaminated_reads++;
     }
 }
 
@@ -198,41 +213,125 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, KmerStatsReadCoun
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void update_stats_for_both(KmerStats* stats, KmerStatsReadCounts* both_stats)
+boolean update_stats_for_both(KmerStats* stats, CmdLine* cmd_line, KmerCounts* counts_a, KmerCounts* counts_b)
 {
+    boolean threshold_met = false;
+    boolean unique_threshold_met = false;
     int i;
-        
+    int largest_contaminant = 0;
+    int largest_kmers = 0;
+    int one_in_both = 0;
+    int one_in_either = 0;
+    int unique_largest_contaminant = 0;
+    int unique_largest_kmers = 0;
+    int unique_one_in_both = 0;
+    int unique_one_in_either = 0;
+    boolean filter_read = false;
+    
+    // Go through all contaminants and find best match for this pair
     for (i=0; i<stats->n_contaminants; i++) {
-        if (both_stats->k1_contaminated_reads_by_contaminant[i] == 2) {
-            stats->both_reads->k1_contaminated_reads_by_contaminant[i]++;
-        }
-
-        if (both_stats->k1_unique_contaminated_reads_by_contaminant[i] == 2) {
-            stats->both_reads->k1_unique_contaminated_reads_by_contaminant[i]++;
-        }
-
-        if (both_stats->kn_contaminated_reads_by_contaminant[i] == 2) {
-            stats->both_reads->kn_contaminated_reads_by_contaminant[i]++;
+        // First for ALL kmers... after that for unique kmers
+        int a = counts_a->kmers_from_contaminant[i];
+        int b = counts_b->kmers_from_contaminant[i];
+        int t = a + b;
+        
+        // If we got a kmer for this contaminant...
+        if ((a >= cmd_line->kmer_threshold_read) &&
+            (b >= cmd_line->kmer_threshold_read) &&
+            (t >= cmd_line->kmer_threshold_overall)) {
+            // It meets our thresholds. Is it the best yet?
+            if (t > largest_kmers) {
+                largest_kmers = t;
+                largest_contaminant = i;
+            }
+            threshold_met = true;
+        } else if (!threshold_met) {
+            if ((a >= 1) && (b >= 1)) {
+                // One or more in both
+                one_in_both++;
+                if (t > largest_kmers) {
+                    largest_kmers  = t;
+                    largest_contaminant = i;
+                }
+            } else if (((a >= 1) && (b == 0)) || ((a == 0) && (b >= 1))) {
+                // One or more in A or B
+                one_in_either++;
+                if (one_in_both == 0) {
+                    if (t > largest_kmers) {
+                        largest_kmers  = t;
+                        largest_contaminant = i;
+                    }
+                }
+            }
         }
         
-        if (both_stats->kn_unique_contaminated_reads_by_contaminant[i] == 2) {
-            stats->both_reads->kn_unique_contaminated_reads_by_contaminant[i]++;
+        // Now the unique kmers
+        a = counts_a->unique_kmers_from_contaminant[i];
+        b = counts_b->unique_kmers_from_contaminant[i];
+        t = a + b;
+        
+        // If we got a kmer for this contaminant...
+        if ((a >= cmd_line->kmer_threshold_read) &&
+            (b >= cmd_line->kmer_threshold_read) &&
+            (t >= cmd_line->kmer_threshold_overall)) {
+            // It meets our thresholds. Is it the best yet?
+            if (t > unique_largest_kmers) {
+                unique_largest_kmers = t;
+                unique_largest_contaminant = i;
+            }
+            unique_threshold_met = true;
+        } else if (!unique_threshold_met) {
+            if ((a >= 1) && (b >= 1)) {
+                // One or more in both
+                unique_one_in_both++;
+                if (t > unique_largest_kmers) {
+                    unique_largest_kmers = t;
+                    unique_largest_contaminant = i;
+                }
+            } else if (((a >= 1) && (b == 0)) || ((a == 0) && (b >= 1))) {
+                // One or more in A or B
+                unique_one_in_either++;
+                if (unique_one_in_both == 0) {
+                    if (t > unique_largest_kmers) {
+                        unique_largest_kmers = t;
+                        unique_largest_contaminant = i;
+                    }
+                }
+            }
         }
     }
-
-    if (both_stats->k1_contaminated_reads == 2) {
-        stats->both_reads->both_k1_contaminated_reads++;
-    } else if (both_stats->k1_contaminated_reads == 1) {
-        stats->both_reads->either_k1_contaminated_reads++;
+    
+    // Update read counts
+    if (threshold_met) {
+        stats->both_reads->threshold_passed_reads++;
+        stats->both_reads->threshold_passed_reads_by_contaminant[largest_contaminant]++;
+        if (cmd_line->filter_unique == false) {
+            filter_read = true;
+        }
+    } else if (one_in_both > 0) {
+        stats->both_reads->k1_both_reads_not_threshold++;
+        stats->both_reads->k1_both_reads_not_threshold_by_contaminant[largest_contaminant]++;
+    } else if (one_in_either > 0) {
+        stats->both_reads->k1_either_read_not_threshold++;
+        stats->both_reads->k1_either_read_not_threshold_by_contaminant[largest_contaminant]++;
     }
 
-    if (both_stats->kn_contaminated_reads == 2) {
-        stats->both_reads->both_kn_contaminated_reads++;
-    } else if (both_stats->kn_contaminated_reads == 1) {
-        stats->both_reads->either_kn_contaminated_reads++;
-    }        
-
+    if (unique_threshold_met) {
+        stats->both_reads->threshold_passed_reads_unique++;
+        stats->both_reads->threshold_passed_reads_unique_by_contaminant[unique_largest_contaminant]++;
+        filter_read = true;
+    } else if (unique_one_in_both > 0) {
+        stats->both_reads->k1_both_reads_not_threshold_unique++;
+        stats->both_reads->k1_both_reads_not_threshold_unique_by_contaminant[unique_largest_contaminant]++;
+    } else if (unique_one_in_either > 0) {
+        stats->both_reads->k1_either_read_not_threshold_unique++;
+        stats->both_reads->k1_either_read_not_threshold_unique_by_contaminant[unique_largest_contaminant]++;
+    }
+    
+    return filter_read;
 }
+
+
 
 /*----------------------------------------------------------------------*
  * Function:
@@ -264,19 +363,25 @@ void kmer_stats_calculate_read(KmerStats* stats, KmerStatsReadCounts* read)
  *----------------------------------------------------------------------*/
 void kmer_stats_calculate_both(KmerStats* stats)
 {
+    KmerStatsBothReads* b = stats->both_reads;
     int i;
     
-    stats->both_reads->both_k1_contaminaned_reads_pc = (100.0 * (double)stats->both_reads->both_k1_contaminated_reads) / (double)stats->both_reads->number_of_reads;
-    stats->both_reads->both_kn_contaminaned_reads_pc = (100.0 * (double)stats->both_reads->both_kn_contaminated_reads) / (double)stats->both_reads->number_of_reads;
-    stats->both_reads->either_k1_contaminaned_reads_pc = (100.0 * (double)stats->both_reads->either_k1_contaminated_reads) / (double)stats->both_reads->number_of_reads;
-    stats->both_reads->either_kn_contaminaned_reads_pc = (100.0 * (double)stats->both_reads->either_kn_contaminated_reads) / (double)stats->both_reads->number_of_reads;
+    b->threshold_passed_reads_pc = (100.0 * (double)b->threshold_passed_reads) / (double)b->number_of_reads;
+    b->k1_both_reads_not_threshold_pc = (100.0 * (double)b->k1_both_reads_not_threshold) / (double)b->number_of_reads;
+    b->k1_either_read_not_threshold_pc = (100.0 * (double)b->k1_either_read_not_threshold) / (double)b->number_of_reads;
+    b->threshold_passed_reads_pc_unique = (100.0 * (double)b->threshold_passed_reads_unique) / (double)b->number_of_reads;
+    b->k1_both_reads_not_threshold_pc_unique = (100.0 * (double)b->k1_both_reads_not_threshold_unique) / (double)b->number_of_reads;
+    b->k1_either_read_not_threshold_pc_unique = (100.0 * (double)b->k1_either_read_not_threshold_unique) / (double)b->number_of_reads;
     
     for (i=0; i<stats->n_contaminants; i++) {
-        stats->both_reads->k1_contaminated_reads_by_contaminant_pc[i] = (100.0 * (double)stats->both_reads->k1_contaminated_reads_by_contaminant[i]) / (double)stats->both_reads->number_of_reads;
-        stats->both_reads->k1_unique_contaminated_reads_by_contaminant_pc[i] = (100.0 * (double)stats->both_reads->k1_unique_contaminated_reads_by_contaminant[i]) / (double)stats->both_reads->number_of_reads;
-        stats->both_reads->kn_contaminated_reads_by_contaminant_pc[i] = (100.0 * (double)stats->both_reads->kn_contaminated_reads_by_contaminant[i]) / (double)stats->both_reads->number_of_reads;
-        stats->both_reads->kn_unique_contaminated_reads_by_contaminant_pc[i] = (100.0 * (double)stats->both_reads->kn_unique_contaminated_reads_by_contaminant[i]) / (double)stats->both_reads->number_of_reads;
-        stats->both_reads->contaminant_kmers_seen_pc[i] = (100.0 * (double)stats->both_reads->contaminant_kmers_seen[i]) / (double)stats->contaminant_kmers[i];
+        b->contaminant_kmers_seen_pc[i] = (100.0 * (double)b->contaminant_kmers_seen[i]) / (double)stats->contaminant_kmers[i];
+        
+        b->threshold_passed_reads_by_contaminant_pc[i] = (100.0 * (double)b->threshold_passed_reads_by_contaminant[i]) / (double)b->number_of_reads;
+        b->k1_both_reads_not_threshold_by_contaminant_pc[i] = (100.0 * (double)b->k1_both_reads_not_threshold_by_contaminant[i]) / (double)b->number_of_reads;
+        b->k1_either_read_not_threshold_by_contaminant_pc[i] = (100.0 * (double)b->k1_either_read_not_threshold_by_contaminant[i]) / (double)b->number_of_reads;
+        b->threshold_passed_reads_unique_by_contaminant_pc[i] = (100.0 * (double)b->threshold_passed_reads_unique_by_contaminant[i]) / (double)b->number_of_reads;
+        b->k1_both_reads_not_threshold_unique_by_contaminant_pc[i] = (100.0 * (double)b->k1_both_reads_not_threshold_unique_by_contaminant[i]) / (double)b->number_of_reads;
+        b->k1_either_read_not_threshold_unique_by_contaminant_pc[i] = (100.0 * (double)b->k1_either_read_not_threshold_unique_by_contaminant[i]) / (double)b->number_of_reads;
     }
 }
 
@@ -300,19 +405,20 @@ void kmer_stats_calculate(KmerStats* stats)
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void kmer_stats_report_read_stats(KmerStats* stats, KmerStatsReadCounts* read)
+void kmer_stats_report_read_stats(KmerStats* stats, int r, CmdLine* cmd_line)
 {
     int i;
     char str[1024];
+    KmerStatsReadCounts* read = stats->read[r];
     
     printf("Overall statistics\n\n");
     printf("%64s: %d\n", "Number of reads", read->number_of_reads);
-    printf("%64s: %d\n", "Number of reads with 1+ kmer contamination", read->k1_contaminated_reads);
-    printf("%64s: %.2f\n", "%% of reads with 1+ kmer contamination", read->k1_contaminaned_reads_pc);
-    sprintf(str, "Number of reads with %d+ kmer contamination", stats->kmer_threshold);
-    printf("%64s: %d\n", str, read->kn_contaminated_reads);
-    sprintf(str, "%% of reads with %d+ kmer contamination", stats->kmer_threshold);
-    printf("%64s: %.2f\n", str, read->kn_contaminaned_reads_pc);
+    printf("%64s: %d\t%.2f %%\n", "Number of reads with 1+ kmer contamination", read->k1_contaminated_reads, read->k1_contaminaned_reads_pc);
+    
+    if (cmd_line->kmer_threshold_read != 1) {
+        sprintf(str, "Number of reads with %d+ kmer contamination", cmd_line->kmer_threshold_read);
+        printf("%64s: %d\t%.2f %%\n", str, read->kn_contaminated_reads, read->kn_contaminaned_reads_pc);
+    }
     
     printf("\nPer-contaminant statistics\n\n");
     
@@ -342,44 +448,43 @@ void kmer_stats_report_read_stats(KmerStats* stats, KmerStatsReadCounts* read)
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void kmer_stats_report_both_stats(KmerStats* stats)
+void kmer_stats_report_both_stats(KmerStats* stats, CmdLine* cmd_line)
 {
     int i;
-    char str[1024];
     
     printf("Overall statistics\n\n");
-    printf("%64s: %d\n", "Number of pairs", stats->both_reads->number_of_reads);
-    printf("%64s: %d\n", "Number of pairs with 1+ kmer contamination in only R1 or R2", stats->both_reads->either_k1_contaminated_reads);
-    printf("%64s: %.2f\n", "%% of pairs with 1+ kmer contamination in only R1 or R2", stats->both_reads->either_k1_contaminaned_reads_pc);
-    sprintf(str, "Number of pairs with %d+ kmer contamination in only R1 or R2", stats->kmer_threshold);
-    printf("%64s: %d\n", str, stats->both_reads->either_kn_contaminated_reads);
-    sprintf(str, "%% of pairs with %d+ kmer contamination in only R1 or R2", stats->kmer_threshold);
-    printf("%64s: %.2f\n", str, stats->both_reads->either_kn_contaminaned_reads_pc);
-    printf("%64s: %d\n", "Number of pairs with 1+ kmer contamination in both R1 and R2", stats->both_reads->both_k1_contaminated_reads);
-    printf("%64s: %.2f\n", "%% of pairs with 1+ kmer contamination in both R1 and R2", stats->both_reads->both_k1_contaminaned_reads_pc);
-    sprintf(str, "Number of pairs with %d+ kmer contamination in both R1 and R2", stats->kmer_threshold);
-    printf("%64s: %d\n", str, stats->both_reads->both_kn_contaminated_reads);
-    sprintf(str, "%% of pairs with %d+ kmer contamination in both R1 and R2", stats->kmer_threshold);
-    printf("%64s: %.2f\n", str, stats->both_reads->both_kn_contaminaned_reads_pc);
+    printf("%64s: %d\n\n", "Number of pairs", stats->both_reads->number_of_reads);
+    printf("%64s: %d\t%.2f %%\n", "Reads meeting threshold (all kmers)", stats->both_reads->threshold_passed_reads, stats->both_reads->threshold_passed_reads_pc);
+    printf("%64s: %d\t%.2f %%\n", "Remaining reads with at least 1 kmer in each", stats->both_reads->k1_both_reads_not_threshold, stats->both_reads->k1_both_reads_not_threshold_pc);
+    printf("%64s: %d\t%.2f %%\n\n", "Remaining reads with at least 1 kmer in either", stats->both_reads->k1_either_read_not_threshold, stats->both_reads->k1_either_read_not_threshold_pc);
+
+    printf("%64s: %d\t%.2f %%\n", "Reads meeting threshold (unique kmers only)", stats->both_reads->threshold_passed_reads_unique, stats->both_reads->threshold_passed_reads_pc_unique);
+    printf("%64s: %d\t%.2f %%\n", "Remaining reads with at least 1 unique kmer in each", stats->both_reads->k1_both_reads_not_threshold_unique, stats->both_reads->k1_both_reads_not_threshold_pc_unique);
+    printf("%64s: %d\t%.2f %%\n", "Remaining reads with at least 1 unique kmer in either", stats->both_reads->k1_either_read_not_threshold_unique, stats->both_reads->k1_either_read_not_threshold_pc_unique);
+
     
     printf("\nPer-contaminant statistics\n\n");
 
-    printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%%kFound", "ReadsW1k", "%%ReadsW1k", "UniqW1k", "%%UniqW1k", "ReadsWnk", "%%ReadsWnk", "UniqWnk", "%%UniqWnk");
+    printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%%kFound", "ReadsThr", "%%ReadsThr", "BothW1k", "%%BothW1k", "EithW1k", "%%Eith1k", "UniqRTh", "%%UniqRTh", "UniqB1k", "%%UniqB1k", "UniqE1k", "%%UniqE1k");
     
     for (i=0; i<stats->n_contaminants; i++) {
-        printf("%-30s %-10d %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f\n",
+        printf("%-30s %-10d %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f\n",
                stats->contaminant_ids[i],
                stats->contaminant_kmers[i],
                stats->both_reads->contaminant_kmers_seen[i],
                stats->both_reads->contaminant_kmers_seen_pc[i],
-               stats->both_reads->k1_contaminated_reads_by_contaminant[i],
-               stats->both_reads->k1_contaminated_reads_by_contaminant_pc[i],
-               stats->both_reads->k1_unique_contaminated_reads_by_contaminant[i],
-               stats->both_reads->k1_unique_contaminated_reads_by_contaminant_pc[i],
-               stats->both_reads->kn_contaminated_reads_by_contaminant[i],
-               stats->both_reads->kn_contaminated_reads_by_contaminant_pc[i],
-               stats->both_reads->kn_unique_contaminated_reads_by_contaminant[i],
-               stats->both_reads->kn_unique_contaminated_reads_by_contaminant_pc[i]);
+               stats->both_reads->threshold_passed_reads_by_contaminant[i],
+               stats->both_reads->threshold_passed_reads_by_contaminant_pc[i],
+               stats->both_reads->k1_both_reads_not_threshold_by_contaminant[i],
+               stats->both_reads->k1_both_reads_not_threshold_by_contaminant_pc[i],
+               stats->both_reads->k1_either_read_not_threshold_by_contaminant[i],
+               stats->both_reads->k1_either_read_not_threshold_by_contaminant_pc[i],
+               stats->both_reads->threshold_passed_reads_unique_by_contaminant[i],
+               stats->both_reads->threshold_passed_reads_unique_by_contaminant_pc[i],
+               stats->both_reads->k1_both_reads_not_threshold_unique_by_contaminant[i],
+               stats->both_reads->k1_both_reads_not_threshold_unique_by_contaminant_pc[i],
+               stats->both_reads->k1_either_read_not_threshold_unique_by_contaminant[i],
+               stats->both_reads->k1_either_read_not_threshold_unique_by_contaminant_pc[i]);
     }
     
 }
@@ -390,20 +495,17 @@ void kmer_stats_report_both_stats(KmerStats* stats)
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void kmer_stats_report_to_screen(KmerStats* stats)
+void kmer_stats_report_to_screen(KmerStats* stats, CmdLine* cmd_line)
 {
     int r;
     
+    printf("\nThreshold: at least %d kmers in each read and at least %d in pair\n", cmd_line->kmer_threshold_read, cmd_line->kmer_threshold_overall);
+    
     for (r=0; r<stats->number_of_files; r++) {
         printf("\n========== Statistics for Read %d ===========\n\n", r+1);
-        kmer_stats_report_read_stats(stats, stats->read[r]);
+        kmer_stats_report_read_stats(stats, r, cmd_line);
     }
 
-    if (stats->number_of_files == 2) {
-        printf("\n========== Statistics for both reads ===========\n\n");
-        kmer_stats_report_both_stats(stats);
-    }
-    
     printf("\n========== Key ==========\n\n");
     printf("nKmers    - Number of kmers in contaminant reference\n");
     printf("kFound    - Number of unique contaminant kmers found in reads\n");
@@ -412,10 +514,26 @@ void kmer_stats_report_to_screen(KmerStats* stats)
     printf("%%ReadsW1k - Percentage of reads containing 1 or more kmer from the contaminant\n");
     printf("UniqW1k   - Reads containing 1 or more kmer from the contaminant and not any other\n");
     printf("%%UniqW1k  - Percentage of reads containing 1 or more kmer from the contaminant and not any other\n");
-    printf("ReadsWnk  - Reads containing n or more kmer from the contaminant (n=%d)\n", stats->kmer_threshold);
-    printf("%%ReadsWnk - Percentage of reads containing n or more kmer from the contaminant (n=%d)\n", stats->kmer_threshold);
-    printf("UniqWnk   - Reads containing n or more kmer from the contaminant and not any other (n=%d)\n", stats->kmer_threshold);
-    printf("%%UniqWnk  - Percentage of reads containing n or more kmer from the contaminant and not any other (n=%d)\n", stats->kmer_threshold);
+    printf("ReadsWnk  - Reads containing n or more kmer from the contaminant (n=%d)\n", cmd_line->kmer_threshold_read);
+    printf("%%ReadsWnk - Percentage of reads containing n or more kmer from the contaminant (n=%d)\n", cmd_line->kmer_threshold_read);
+    printf("UniqWnk   - Reads containing n or more kmer from the contaminant and not any other (n=%d)\n", cmd_line->kmer_threshold_read);
+    printf("%%UniqWnk  - Percentage of reads containing n or more kmer from the contaminant and not any other (n=%d)\n", cmd_line->kmer_threshold_read);
+    
+    if (stats->number_of_files == 2) {
+        printf("\n========== Statistics for both reads ===========\n\n");
+        kmer_stats_report_both_stats(stats, cmd_line);
+    }
+
+    printf("\n========== Key ==========\n\n");
+    printf("nKmers    - Number of kmers in contaminant reference\n");
+    printf("kFound    - Number of unique contaminant kmers found in reads\n");
+    printf("%%kFound   - Percentage of contaminant kmers found in reads\n");
+    printf("ReadsThr  - Reads passing threshold\n");
+    printf("%%ReadsThr - Percentage of reads passing threshold\n");
+    printf("BothW1k   - Reads not passing threshold, but containing 1 or more kmer in both reads\n");
+    printf("%%BothW1k  - Percentage of reads not passing threshold, but containing 1 or more kmer in both reads\n");
+    printf("EithW1k   - Reads not passing threshold, but containing 1 or more kmer in either read\n");
+    printf("%%EithW1k  - Percentage of reads not passing threshold, but containing 1 or more kmer in either read\n");
 }
 
 /*----------------------------------------------------------------------*
@@ -621,7 +739,7 @@ void kmer_stats_write_progress(KmerStats* stats, CmdLine* cmd_line)
             fprintf(fp, "name\tvalue\n");
             fprintf(fp, "Number of reads\t%d\n", stats->read[r]->number_of_reads);
             fprintf(fp, "Number with k1 contaminants\t%d\n", stats->read[r]->k1_contaminated_reads);
-            fprintf(fp, "Number with k%d contaminants\t%d\n", stats->kmer_threshold, stats->read[r]->kn_contaminated_reads);
+            fprintf(fp, "Number with k%d contaminants\t%d\n", cmd_line->kmer_threshold_read, stats->read[r]->kn_contaminated_reads);
             fclose(fp);
         } else {
             printf("Error: can't open %s\n", filename);

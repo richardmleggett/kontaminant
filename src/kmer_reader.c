@@ -250,7 +250,6 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
     KmerCounts counts;
     KmerFileReaderWrapperArgs* frw;
     KmerSlidingWindowSet* windows;
-    KmerStatsReadCounts tmp_stats;
     time_t time_previous = 0;
     time_t time_now = 0;
     int i;
@@ -258,8 +257,6 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
 
     assert(fra != NULL);
     assert(fra->KmerHash != NULL);
-
-    memset(&tmp_stats, 0, sizeof(KmerStatsReadCounts));
     
     kmer_hash = fra->KmerHash;
     frw = get_kmer_file_reader_wrapper(kmer_hash->kmer_size, fra);
@@ -299,7 +296,7 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
             shift_last_kmer_to_start_of_sequence(frw->seq, entry_length, kmer_hash->kmer_size);
         } else {
             hash_table_add_number_of_reads(1, kmer_hash);
-            update_stats(0, &counts, stats, &tmp_stats);
+            update_stats(0, &counts, stats, cmd_line);
 
             if (fp_read_summary) {
                 fprintf(fp_read_summary, "%s", frw->seq->name);
@@ -374,7 +371,6 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
     KmerFileReaderWrapperArgs* frw[2];
     KmerSlidingWindowSet* windows[2];
     int number_of_files = 1;
-    boolean filter_read = false;
     int i, j;
     time_t time_previous = 0;
     time_t time_now = 0;
@@ -399,23 +395,25 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
     for (i=0; i<number_of_files; i++) {
         frw[i] = get_kmer_file_reader_wrapper(kmer_hash->kmer_size, fra[i]);
         
-        if (fra[i]->output_filename) {
-            frw[i]->output_fp = fopen(fra[i]->output_filename, "w");
-            if (!frw[i]->output_fp) {
-                printf("Error: can't open output file %s\n", fra[i]->output_filename);
-                exit(3);
-            } else {
-                printf("Opened output %s\n", fra[i]->output_filename);
+        if (cmd_line->run_type == DO_FILTER) {
+            if (fra[i]->output_filename) {
+                frw[i]->output_fp = fopen(fra[i]->output_filename, "w");
+                if (!frw[i]->output_fp) {
+                    printf("Error: can't open output file %s\n", fra[i]->output_filename);
+                    exit(3);
+                } else {
+                    printf("Opened output %s\n", fra[i]->output_filename);
+                }
             }
-        }
 
-        if (fra[i]->removed_filename) {
-            frw[i]->removed_fp = fopen(fra[i]->removed_filename, "w");
-            if (!frw[i]->removed_fp) {
-                printf("Error: can't open removed output file %s\n", fra[i]->removed_filename);
-                exit(3);
-            } else {
-                printf("Opened removed %s\n", fra[i]->removed_filename);
+            if (fra[i]->removed_filename) {
+                frw[i]->removed_fp = fopen(fra[i]->removed_filename, "w");
+                if (!frw[i]->removed_fp) {
+                    printf("Error: can't open removed output file %s\n", fra[i]->removed_filename);
+                    exit(3);
+                } else {
+                    printf("Opened removed %s\n", fra[i]->removed_filename);
+                }
             }
         }
 
@@ -438,14 +436,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
     // Keep reading...
 	while (keep_reading)
 	{
-        KmerStatsReadCounts* stats_both_reads;
-        int k_count = 0;
-        
-        stats_both_reads=calloc(1, sizeof(KmerStatsReadCounts));
-        if (!stats_both_reads) {
-            printf("Error: Can't get memory for stats\n");
-            exit(4);
-        }
+        boolean filter_read = false;
         
         for (i=0; i<number_of_files; i++) {
             int nkmers;
@@ -488,7 +479,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                 }
                 
                 hash_table_add_number_of_reads(1, kmer_hash);
-                update_stats(i, &(counts[i]), stats, stats_both_reads);
+                update_stats(i, &(counts[i]), stats, cmd_line);
                 nr++;
             }
         }
@@ -505,31 +496,27 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
             // Update both read stats if we got two reads
             if ((entry_length[0] > 0) && (entry_length[1] > 0)) {
                 stats->both_reads->number_of_reads++;
-                update_stats_for_both(stats, stats_both_reads);
+                filter_read = update_stats_for_both(stats, cmd_line, &(counts[0]), &(counts[1]));
             }
         }
         
-        // Keep or filter?
-        filter_read=false;
-        k_count = 0;
-        for (i=0; i<number_of_files; i++) {
-            k_count += counts[i].kmers_loaded;
-        }
-        
-        if (k_count >= cmd_line->kmer_threshold) {
-            filter_read = true;
-        } else {
-            filter_read = false;
-        }
-        
         // Output reads
-        for (i=0; i<number_of_files; i++) {
-            if (entry_length[i] > 0) {
-                FILE* fp_out = filter_read ? frw[i]->removed_fp:frw[i]->output_fp;
-                
-                if (fp_out) {
-                    char temp_string[frw[i]->seq->length + 1];
-                    fprintf(fp_out, "%s%s\n+\n%s\n", frw[i]->seq->id_string, frw[i]->seq->seq, sequence_get_quality_string(frw[i]->seq, temp_string));
+        if (cmd_line->run_type == DO_FILTER) {
+            for (i=0; i<number_of_files; i++) {
+                if (entry_length[i] > 0) {
+                    FILE* fp_out = NULL;
+                    
+                    // Keep or filter?
+                    if (filter_read == true) {
+                        fp_out = frw[i]->removed_fp;
+                    } else {
+                        fp_out = frw[i]->output_fp;
+                    }
+                    
+                    if (fp_out) {
+                        char temp_string[frw[i]->seq->length + 1];
+                        fprintf(fp_out, "%s%s\n+\n%s\n", frw[i]->seq->id_string, frw[i]->seq->seq, sequence_get_quality_string(frw[i]->seq, temp_string));
+                    }
                 }
             }
         }
@@ -541,8 +528,6 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                 time_previous = time_now;
             }
         }
-        
-        free(stats_both_reads);
     }
     
     if (cmd_line->write_progress_file) {

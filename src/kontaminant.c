@@ -38,7 +38,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.6d"
+#define VERSION "2.0.7"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -431,9 +431,7 @@ int main(int argc, char* argv[])
         kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats, &cmdline);
         process_files(contaminant_hash, &kmer_stats, &cmdline);
         kmer_stats_calculate(&kmer_stats);
-        kmer_stats_report_to_screen(&kmer_stats);
-        
-        printf("Done\n");
+        kmer_stats_report_to_screen(&kmer_stats, &cmdline);
     }
     
     time(&end);

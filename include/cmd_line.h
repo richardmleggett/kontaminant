@@ -25,7 +25,8 @@ typedef struct {
     int quality_score_offset;
     int quality_score_threshold;
     int max_read_length;
-    int kmer_threshold;
+    int kmer_threshold_overall;
+    int kmer_threshold_read;
     boolean keep_contaminated_reads;
     boolean write_progress_file;
     int progress_delay;
@@ -39,8 +40,7 @@ typedef struct {
     char* output_prefix;
     char* removed_prefix;
     double subsample_ratio;
-    int filter_unique_threshold;
-    int filter_any_threshold;
+    boolean filter_unique;
     char* read_summary_file;
 } CmdLine;
 

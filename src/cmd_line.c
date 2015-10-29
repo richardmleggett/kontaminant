@@ -51,14 +51,14 @@ void initialise_cmdline(CmdLine* c)
     c->quality_score_threshold = 0;
     c->format = FASTQ;
     c->max_read_length = 1000;
-    c->kmer_threshold = 10;
+    c->kmer_threshold_overall = 10;
+    c->kmer_threshold_read = 1;
     c->output_prefix = 0;
     c->removed_prefix = 0;
     c->write_progress_file = false;
     c->progress_delay = 60;
-    c->filter_any_threshold = 1;
-    c->filter_unique_threshold = 0;
     c->read_summary_file = 0;
+    c->filter_unique = false;
 }
 
 /*----------------------------------------------------------------------*
@@ -77,8 +77,10 @@ void usage(void)
            "    [-i | --index] indexes a reference.\n" \
            "Kmer options:\n" \
            "    [-k | --kmer_size] Kmer size (default 21).\n" \
-           "    [-t | --threshold] Kmer threshold (default 10).\n" \
+           "    [-t | --threshold] Kmer threshold for both reads(default 10).\n" \
+           "    [-v | --readthreshold] Kmer threshold for individual reads (default 1).\n" \
            "    [-y | --subsample_ratio] Ratio of reads to sample (default 0.1).\n" \
+           "    [-u | --unique] Count only unique kmers (default off).\n" \
            "Input options:\n" \
            "    [-1 | --input_one] Input R1 file (or reference FASTA for indexing).\n" \
            "    [-2 | --input_two] Input R2 file.\n" \
@@ -121,15 +123,17 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"file_format", required_argument, NULL, 'g'},
         {"help", no_argument, NULL, 'h'},
         {"index", no_argument, NULL, 'i'},
-        {"read_summary", no_argument, NULL, 'j'},
+        {"read_summary", required_argument, NULL, 'j'},
         {"kmer_size", required_argument, NULL, 'k'},
+        {"readthreshold", required_argument, NULL, 'l'},
         {"mem_height", required_argument, NULL, 'n'},
         {"output_prefix", required_argument, NULL, 'o'},
         {"progress", required_argument, NULL, 'p'},
         {"removed_prefix", required_argument, NULL, 'r'},
         {"screen", no_argument, NULL, 's'},
         {"threshold", required_argument, NULL, 't'},
-        {"progress_interval", required_argument, NULL, 'u'},
+        {"unique", no_argument, NULL, 'u'},
+        {"progress_interval", required_argument, NULL, 'w'},
         {"keep_contaminated_reads", no_argument, NULL, 'x'},
         {"subsample_ratio", required_argument, NULL, 'y'},
         {"file_of_files", required_argument, NULL, 'z'},
@@ -143,7 +147,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hij:k:n:so:p:r:t:u:xyz:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hij:k:l:n:o:p:r:st:uw:xy:z:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case '1':
@@ -276,6 +280,13 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                 }
                 c->kmer_size = atoi(optarg);
                 break;
+            case 'l':
+                if (optarg==NULL) {
+                    printf("Error: [-l | --readthreshold] option requires an argument.\n");
+                    exit(1);
+                }
+                c->kmer_threshold_read = atoi(optarg);
+                break;
             case 'n':
                 if (optarg == NULL) {
                     printf("[-n | --mem_height] option requires int argument [hash table number of buckets in bits]");
@@ -336,9 +347,12 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     printf("Error: [-t | --threshold] option requires an argument.\n");
                     exit(1);
                 }
-                c->kmer_threshold = atoi(optarg);
+                c->kmer_threshold_overall = atoi(optarg);
                 break;
             case 'u':
+                c->filter_unique = true;
+                break;
+            case 'w':
                 if (optarg == NULL) {
                     printf("[-u | --progress_interval] option requires int argument [delay in seconds]");
                     exit(1);
