@@ -34,7 +34,7 @@ endif
 
 OPT	= -Wall -O3 -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -g
 
-CFLAGS_KONTAMINANT = -Iinclude
+CFLAGS_KONTAMINANT = -O3 -Iinclude
 
 KONTAMINANT_OBJ = obj/kontaminant.o obj/hash_table.o obj/hash_value.o obj/logger.o obj/binary_kmer.o obj/element.o obj/kmer_reader.o obj/cmd_line.o obj/seq.o obj/kmer_stats.o obj/kmer_build.o
 

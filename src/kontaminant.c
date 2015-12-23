@@ -38,7 +38,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.7"
+#define VERSION "2.0.8"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -249,7 +249,7 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
                 exit(2);
             }
 
-            if (cmdline->output_prefix) {
+            if ((cmdline->output_prefix) && (cmdline->run_type == DO_FILTER)) {
                 fra[i]->output_filename = malloc(strlen(filenames[i]) + strlen(cmdline->output_prefix) + 1);
                 if (!fra[i]->output_filename) {
                     printf("Error: Can't get memory for output filenames\n");
@@ -259,7 +259,7 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
                 fra[i]->output_filename = 0;
             }
 
-            if (cmdline->removed_prefix) {
+            if ((cmdline->removed_prefix) && (cmdline->run_type == DO_FILTER)) {
                 fra[i]->removed_filename = malloc(strlen(filenames[i]) + strlen(cmdline->removed_prefix) + 1);
 
                 if (!fra[i]->removed_filename) {
@@ -303,10 +303,10 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
         }
     } else {
         printf("  Source pair %s\n          and %s\n", fra[0]->input_filename, fra[1]->input_filename);
-        if (cmdline->output_prefix) {
+        if ((cmdline->output_prefix) && (cmdline->run_type == DO_FILTER)) {
             printf("Filtered pair %s\n          and %s\n", fra[0]->output_filename, fra[1]->output_filename);
         }
-        if (cmdline->removed_prefix) {
+        if ((cmdline->removed_prefix) && (cmdline->run_type == DO_FILTER)) {
             printf("Removed reads %s\n          and %s\n", fra[0]->removed_filename, fra[1]->removed_filename);
         }
     }
@@ -429,7 +429,17 @@ int main(int argc, char* argv[])
         printf("\n");
         hash_table_print_stats(contaminant_hash);
         kmer_stats_compare_contaminant_kmers(contaminant_hash, &kmer_stats, &cmdline);
+
+        time(&end);
+        seconds = difftime(end, start);
+        printf("\nProcessing read files (after %.0f seconds)...\n", seconds);
+        
         process_files(contaminant_hash, &kmer_stats, &cmdline);
+
+        time(&end);
+        seconds = difftime(end, start);
+        printf("\nCalculating stats (after %.0f seconds)...\n", seconds);
+        
         kmer_stats_calculate(&kmer_stats);
         kmer_stats_report_to_screen(&kmer_stats, &cmdline);
     }
