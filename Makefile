@@ -42,7 +42,7 @@ CFLAGS_KONTAMINANT = -Iinclude
 KONTAMINANT_OBJ = obj/kontaminant.o obj/hash_table.o obj/hash_value.o obj/logger.o obj/binary_kmer.o obj/element.o obj/kmer_reader.o obj/cmd_line.o obj/seq.o obj/kmer_stats.o obj/kmer_build.o
 
 all:remove_objects $(KONTAMINANT_OBJ)
-	mkdir -p $(BIN); $(CC) $(OPT) -lprofiler -lm -o $(BIN)/kontaminant $(KONTAMINANT_OBJ)
+	mkdir -p $(BIN); $(CC) $(OPT) -lm -o $(BIN)/kontaminant $(KONTAMINANT_OBJ)
 
 clean:
 	rm obj/*
