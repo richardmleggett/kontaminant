@@ -121,7 +121,7 @@ boolean hash_table_find_in_bucket(Key key, long long * current_pos, boolean * ov
 	binary_kmer_assignment_operator(bkmer_with_rehash_added, *key);
 	bkmer_with_rehash_added[NUMBER_OF_BITFIELDS_IN_BINARY_KMER-1] =   bkmer_with_rehash_added[NUMBER_OF_BITFIELDS_IN_BINARY_KMER-1]+ (bitfield_of_64bits) rehash;
 	
-	int hashval = hash_value(&bkmer_with_rehash_added,hash_table->number_buckets);
+	int hashval = (int)hash_value(&bkmer_with_rehash_added, (int)hash_table->number_buckets);
 	
 	
 	boolean found = false;
@@ -132,9 +132,11 @@ boolean hash_table_find_in_bucket(Key key, long long * current_pos, boolean * ov
     //printf("Start of bucket: %lld\n", *current_pos);
     //printf("Flag: %d\n", element_check_for_flag_ALL_OFF(&hash_table->table[*current_pos]));
     
-	while( (i<hash_table->bucket_size) &&   // still within the bucket
-		  (!element_check_for_flag_ALL_OFF(&hash_table->table[*current_pos]) )  && // not yet reached an empty space
-		  (!found)
+	while((!found) &&
+          (i<hash_table->bucket_size) &&   // still within the bucket
+          (hash_table->table[*current_pos].flags != ALL_OFF)
+		  //(!element_check_for_flag_ALL_OFF(&hash_table->table[*current_pos]) )  && // not yet reached an empty space
+		  //(!found)
 		  )
     {
         //printf("Loopy\n");
@@ -259,6 +261,34 @@ void hash_table_traverse(void (*f)(Element *),HashTable * hash_table){
 	
 }
 
+void hash_table_traverse_with_data(void (*f)(Element *, void *),void* data,HashTable * hash_table){
+    long long i;
+    
+    printf("\n");
+    
+    long long one_percent =  (hash_table->number_buckets * hash_table->bucket_size) / 100 ;
+    int percent = 0;
+    
+    log_progress_bar(0);
+    for(i=0;i<hash_table->number_buckets * hash_table->bucket_size;i++){
+        
+        if (!element_check_for_flag_ALL_OFF(&hash_table->table[i])){
+            f(&hash_table->table[i], data);
+        }
+        
+        if(one_percent > 0){
+            
+            if(i % one_percent == 0){
+                percent = ((double)i / (double)(hash_table->number_buckets * hash_table->bucket_size)) *100;
+                log_progress_bar(percent);
+            } 
+        }
+    }
+    log_progress_bar(100);
+    printf("\n");
+    
+}
+
 void hash_table_traverse_with_args(void (*f)(Element *, void *),void ** args, HashTable * hash_table){
 	long long i;
 	
@@ -341,7 +371,7 @@ void hash_table_dump_memory(char * filename, HashTable * hash){
 	char * magic = MAGIC_TEXT;
 	int size_ht = sizeof(HashTable);
 	int size_e = sizeof(Element);
-	int magic_size = strlen(magic);
+	int magic_size = (int)strlen(magic);
 	short version = HASH_VERSION;
 
 	
@@ -858,7 +888,7 @@ void hash_table_set_number_of_threads(int threads, HashTable * hash_table){
 
 
 void hash_table_set_number_of_reads(long long read_count, HashTable * hash_table){
-    hash_table->number_of_reads = read_count;
+    hash_table->number_of_reads = (int)read_count;
 }
 long long hash_table_get_number_of_reads(HashTable * hash_table){
     return hash_table->number_of_reads;

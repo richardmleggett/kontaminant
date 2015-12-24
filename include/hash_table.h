@@ -112,6 +112,8 @@ void hash_table_threaded_traverse_with_vars( void (*f)(Element *, void * args), 
 void hash_table_threaded_traverse( void (*f)(Element *), HashTable * hash_table);
 #endif
 
+void hash_table_traverse_with_data(void (*f)(Element *, void *),void* data,HashTable * hash_table);
+
 HashTable *  hash_table_read_dumped_memory(char * filename );
 
 

@@ -50,24 +50,12 @@ void load_reads_into_table(CmdLine* cmd_line,  HashTable* kmer_hash)
     
 }
 
-typedef struct {
-    long long kmers_dumped;
-    FILE* fout;
-    int kmer_size;
-} PrintNodeBinaryStruct;
-
 /*----------------------------------------------------------------------*
  * Function:
  * Purpose:
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
-void print_node_binary(Element* node, void* data) {
-    PrintNodeBinaryStruct* pnb = (PrintNodeBinaryStruct*)data;
-    db_node_print_binary(pnb->fout, node, pnb->kmer_size);
-    pnb->kmers_dumped++;
-    printf("k=%d\n", pnb->kmer_size);
-}
 
 /*----------------------------------------------------------------------*
  * Function:
@@ -77,11 +65,10 @@ void print_node_binary(Element* node, void* data) {
  *----------------------------------------------------------------------*/
 void dump_kmer_hash(CmdLine* cmd_line, HashTable * kmer_hash)
 {
+    FILE *fout;
     char* output_filename = malloc(strlen(cmd_line->input_filename_one) + 16);
+    long long kmers_dumped = 0;
     KmerLibraryHeader* header = calloc(1, sizeof(KmerLibraryHeader));
-    PrintNodeBinaryStruct pnb;
-    
-    pnb.kmers_dumped = 0;
     
     if (!header) {
         printf("Error: can't allocate room for header\n");
@@ -93,23 +80,28 @@ void dump_kmer_hash(CmdLine* cmd_line, HashTable * kmer_hash)
     header->version = BINVERSION;
     header->kmer_size = kmer_hash->kmer_size;
     header->num_bitfields = NUMBER_OF_BITFIELDS_IN_BINARY_KMER;
-    header->num_kmers = (uint32_t)kmer_hash->unique_kmers;
+    header->num_kmers = kmer_hash->unique_kmers;
 
     sprintf(output_filename, "%s.%d.kmers", cmd_line->input_filename_one, cmd_line->kmer_size);
     
     printf("\nDumping hash table to file: %s\n", output_filename);
 
-    pnb.fout = fopen(output_filename, "wb");
-	if (pnb.fout == NULL) {
+    fout = fopen(output_filename, "wb");
+	if (fout == NULL) {
 		fprintf(stderr, "Error: cannot open %s", output_filename);
 		exit(1);
 	}
     
-    fwrite(header, sizeof(KmerLibraryHeader), 1, pnb.fout);
+    fwrite(header, sizeof(KmerLibraryHeader), 1, fout);
     
-    hash_table_traverse_with_data(&print_node_binary, (void*)&pnb, kmer_hash);
+    void print_node_binary(Element* node) {
+        db_node_print_binary(fout, node, kmer_hash->kmer_size);
+        kmers_dumped++;
+    }
     
-	fclose(pnb.fout);
+    hash_table_traverse(&print_node_binary, kmer_hash);
+    
+	fclose(fout);
     fflush(stdout);
-	printf("%'lld kmers dumped\n", pnb.kmers_dumped);
+	printf("%'lld kmers dumped\n", kmers_dumped);
 }

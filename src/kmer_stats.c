@@ -536,6 +536,44 @@ void kmer_stats_report_to_screen(KmerStats* stats, CmdLine* cmd_line)
     printf("%%EithW1k  - Percentage of reads not passing threshold, but containing 1 or more kmer in either read\n");
 }
 
+void check_kmers_in_common(Element* node, void* data) {
+    KmerStats* stats = data;
+    int i, j;
+    for (i=0; i<(stats->n_contaminants); i++) {
+        if (element_get_contaminant_bit(node, i) > 0) {
+            for (j=i; j<stats->n_contaminants; j++) {
+                if (element_get_contaminant_bit(node, j) > 0) {
+                    stats->kmers_in_common[i][j]++;
+                    if (i != j) {
+                        stats->kmers_in_common[j][i]++;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void check_unique_kmers(Element* node, void* data) {
+    KmerStats* stats = data;
+    int i;
+    int count = 0;
+    int index = 0;
+    
+    for (i=0; i<(stats->n_contaminants); i++) {
+        if (element_get_contaminant_bit(node, i) > 0) {
+            index = i;
+            count++;
+            if (count > 1) {
+                break;
+            }
+        }
+    }
+    
+    if (count == 1) {
+        stats->unique_kmers[index]++;
+    }
+}
+
 /*----------------------------------------------------------------------*
  * Function:
  * Purpose:
@@ -620,45 +658,9 @@ void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, Cmd
         printf("Opened %s\n", filename_pc_unique);
     }
     
-    void check_kmers_in_common(Element* node) {
-        int i, j;
-        for (i=0; i<(stats->n_contaminants); i++) {
-            if (element_get_contaminant_bit(node, i) > 0) {
-                for (j=i; j<stats->n_contaminants; j++) {
-                    if (element_get_contaminant_bit(node, j) > 0) {
-                        stats->kmers_in_common[i][j]++;
-                        if (i != j) {
-                            stats->kmers_in_common[j][i]++;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    hash_table_traverse(&check_kmers_in_common, hash);
-    
-    void check_unique_kmers(Element* node) {
-        int i;
-        int count = 0;
-        int index = 0;
-        
-        for (i=0; i<(stats->n_contaminants); i++) {
-            if (element_get_contaminant_bit(node, i) > 0) {
-                index = i;
-                count++;
-                if (count > 1) {
-                    break;
-                }
-            }
-        }
-        
-        if (count == 1) {
-            stats->unique_kmers[index]++;
-        }
-    }
+    hash_table_traverse_with_data(&check_kmers_in_common, (void*)stats, hash);
 
-    hash_table_traverse(&check_unique_kmers, hash);
+    hash_table_traverse_with_data(&check_unique_kmers, (void*)stats, hash);
     
     printf("\n%15s ", "");
     fprintf(fp_abs, "Contaminant");

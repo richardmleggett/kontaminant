@@ -603,7 +603,7 @@ long long load_seq_into_kmers_hash(KmerFileReaderArgs* fra, KmerFileReaderWrappe
     long long contaminated_reads = 0;
 	short kmer_size = kmer_hash->kmer_size;
 	int entry_length;
-    int kmers_loaded;
+    int kmers_loaded = 0;
 	boolean prev_full_entry = true;
 	Element *previous_node = NULL;
     boolean keep_reading = true;
@@ -911,7 +911,7 @@ boolean read_kmer_from_file(FILE* fp, short kmer_size, Element* node)
 	//uint32_t coverage = 0;
 	int read;
     
-	read = fread(&kmer, sizeof(bitfield_of_64bits), NUMBER_OF_BITFIELDS_IN_BINARY_KMER, fp);
+	read = (int) fread(&kmer, sizeof(bitfield_of_64bits), NUMBER_OF_BITFIELDS_IN_BINARY_KMER, fp);
     
 	if (read > 0) {
 		element_initialise(node, &kmer, kmer_size);
@@ -983,5 +983,5 @@ uint32_t load_kmer_library(char* filename, int n, int k, HashTable* contaminant_
     
 	fclose(fp_bin);
     
-    return count;
+    return (int)count;
 }

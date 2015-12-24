@@ -32,14 +32,17 @@ ifeq ($(MAXK),127)
    BITFIELDS = 4
 endif
 
-OPT	= -Wall -O3 -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -g
+OPT	= -Wall -DNUMBER_OF_BITFIELDS_IN_BINARY_KMER=$(BITFIELDS) -pthread -O3
 
-CFLAGS_KONTAMINANT = -O3 -Iinclude
+# -g -pg
+
+CFLAGS_KONTAMINANT = -Iinclude
+# -O3
 
 KONTAMINANT_OBJ = obj/kontaminant.o obj/hash_table.o obj/hash_value.o obj/logger.o obj/binary_kmer.o obj/element.o obj/kmer_reader.o obj/cmd_line.o obj/seq.o obj/kmer_stats.o obj/kmer_build.o
 
 all:remove_objects $(KONTAMINANT_OBJ)
-	mkdir -p $(BIN); $(CC) $(OPT) -o $(BIN)/kontaminant $(KONTAMINANT_OBJ) -lm
+	mkdir -p $(BIN); $(CC) $(OPT) -lprofiler -lm -o $(BIN)/kontaminant $(KONTAMINANT_OBJ)
 
 clean:
 	rm obj/*

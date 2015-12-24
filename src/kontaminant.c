@@ -48,7 +48,7 @@
  *----------------------------------------------------------------------*/
 void chomp(char* str)
 {
-    int i = strlen(str) - 1;
+    int i = (int)strlen(str) - 1;
     
     while ((i > 0) && (str[i] < ' ')) {
         str[i--] = 0;
@@ -63,8 +63,8 @@ void chomp(char* str)
  *----------------------------------------------------------------------*/
 int strcmp_i(char* a, char* b)
 {
-    int len_a = strlen(a);
-    int len_b = strlen(b);
+    int len_a = (int)strlen(a);
+    int len_b = (int)strlen(b);
     int length = len_a > len_b ? len_b:len_a;
     int i = 0;
     int diff = 0;
@@ -417,7 +417,7 @@ int main(int argc, char* argv[])
     kmer_stats_initialise(&kmer_stats, &cmdline);
     contaminant_hash = create_hash_table(&cmdline, cmdline.kmer_size);
 
-    if ((cmdline.run_type == DO_INDEX)) {
+    if (cmdline.run_type == DO_INDEX) {
         // Index file
         load_reads_into_table(&cmdline, contaminant_hash);
         printf("\n");
