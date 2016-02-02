@@ -66,7 +66,7 @@ void print_node_binary(Element* node, void* data) {
     PrintNodeBinaryStruct* pnb = (PrintNodeBinaryStruct*)data;
     db_node_print_binary(pnb->fout, node, pnb->kmer_size);
     pnb->kmers_dumped++;
-    printf("k=%d\n", pnb->kmer_size);
+    //printf("k=%d\n", pnb->kmer_size);
 }
 
 /*----------------------------------------------------------------------*
