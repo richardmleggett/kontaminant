@@ -425,7 +425,7 @@ void kmer_stats_report_read_stats(KmerStats* stats, int r, CmdLine* cmd_line)
     printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%%kFound", "ReadsW1k", "%%ReadsW1k", "UniqW1k", "%%UniqW1k", "ReadsWnk", "%%ReadsWnk", "UniqWnk", "%%UniqWnk");
            
     for (i=0; i<stats->n_contaminants; i++) {
-        printf("%-30s %-10d %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f\n",
+        printf("%-30s %-10u %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f\n",
                stats->contaminant_ids[i],
                stats->contaminant_kmers[i],
                read->contaminant_kmers_seen[i],
@@ -468,7 +468,7 @@ void kmer_stats_report_both_stats(KmerStats* stats, CmdLine* cmd_line)
     printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%%kFound", "ReadsThr", "%%ReadsThr", "BothW1k", "%%BothW1k", "EithW1k", "%%Eith1k", "UniqRTh", "%%UniqRTh", "UniqB1k", "%%UniqB1k", "UniqE1k", "%%UniqE1k");
     
     for (i=0; i<stats->n_contaminants; i++) {
-        printf("%-30s %-10d %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f %-10d %-10.2f\n",
+        printf("%-30s %-10u %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f\n",
                stats->contaminant_ids[i],
                stats->contaminant_kmers[i],
                stats->both_reads->contaminant_kmers_seen[i],
