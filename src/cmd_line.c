@@ -416,4 +416,8 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         printf("Error: you must specify an output prefix\n");
         exit(1);
     }
+    
+    if ((c->kmer_threshold_read * 2) > c->kmer_threshold_overall) {
+        printf("NOTE: by specifying a read threshold of %d, you require at least %d kmers over both reads, which has the effect of increasing your overall threshold past the specified value (%d). This isn't a problem, as long as you are aware.\n\n", c->kmer_threshold_read, c->kmer_threshold_read*2, c->kmer_threshold_overall);
+    }
 }
