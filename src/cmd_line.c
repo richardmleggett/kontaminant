@@ -53,7 +53,8 @@ void initialise_cmdline(CmdLine* c)
     c->max_read_length = 1000;
     c->kmer_threshold_overall = 10;
     c->kmer_threshold_read = 1;
-    c->output_prefix = 0;
+    c->output_prefix = malloc(8);
+    strcpy(c->output_prefix, "kout_");
     c->removed_prefix = 0;
     c->write_progress_file = false;
     c->progress_delay = 60;
@@ -88,7 +89,7 @@ void usage(void)
            "    [-z | --file_of_files] Input file of files (for batch processing - instead of -1 and -2).\n" \
            "Output options:\n" \
            "    [-j | --read_summary] Read summary file.\n" \
-           "    [-o | --output_prefix] Output prefix (filtering only).\n" \
+           "    [-o | --output_prefix] Output prefix (default: 'kout_').\n" \
            "    [-p | --progress] Name of directory for streaming progress page.\n"
            "    [-r | --removed_prefix] Removed reads prefix (filtering only).\n" \
            "    [-x | --keep_contaminated_reads] Save contaminated reads into separate file.\n" \
@@ -412,7 +413,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         }
     }
     
-    if ((c->run_type == DO_FILTER) && (c->output_prefix == 0)) {
+    if (c->output_prefix == 0) {
         printf("Error: you must specify an output prefix\n");
         exit(1);
     }

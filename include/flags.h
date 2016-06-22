@@ -42,7 +42,8 @@
 #define SHORT_FLAGS
 #endif
 
-#define FLAG_BITS_USED 4
+// Note: FLAG_BITS_USED is defined in Makefile and determines how many bits of the Flags field are used for flags - the rest
+// can be used for contaminant flags.
 
 typedef uint32_t Flags;
 #define ASSIGNED			  (1 << 0)  //x0001
