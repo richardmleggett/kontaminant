@@ -257,6 +257,8 @@ void element_increment_coverage(Element *node, int read)
 #endif
 }
 
+
+
 uint32_t element_get_coverage(Element *node, int read)
 {
 #ifdef STORE_FULL_COVERAGE
@@ -269,3 +271,17 @@ uint32_t element_get_coverage(Element *node, int read)
     }
 #endif
 }
+
+void element_get_read_coverages(Element *node, int* a, int* b)
+{
+#ifdef STORE_FULL_COVERAGE
+    *a = node->coverage[0];
+    *b = node->coverage[1];
+#else
+    *a = node->flags & COVERAGE_L ? 1:0;
+    *b = node->flags & COVERAGE_R ? 1:0;
+#endif
+}
+
+
+

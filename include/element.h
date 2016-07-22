@@ -68,3 +68,4 @@ BinaryKmer *element_get_kmer(Element * e);
 void db_node_print_binary(FILE * fp, Element* node, int kmer_size);
 void element_increment_coverage(Element *node, int read);
 uint32_t element_get_coverage(Element *node, int read);
+void element_get_read_coverages(Element *node, int* a, int* b);

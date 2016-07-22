@@ -9,11 +9,10 @@
 
 /*
    TO DO:
+   - UNIQUE KMERS
    - binary files include n and b values in header. Scan all files before
      starting to decide on memory usage.
-   - Filtering (and screening?) paired end.
    - Read/write .fasta.gzip files.
-   - Write stats to plain text file.
  */
 
 #include <stdlib.h>
@@ -26,6 +25,7 @@
 #include <time.h>
 #include <errno.h>
 #include <assert.h>
+#include <pthread.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"
@@ -38,7 +38,7 @@
 /*----------------------------------------------------------------------*
  * Constants
  *----------------------------------------------------------------------*/
-#define VERSION "2.0.11"
+#define VERSION "2.1.4"
 
 /*----------------------------------------------------------------------*
  * Function:   chomp
@@ -322,7 +322,11 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
             exit(3);
         }
     } else if (cmdline->format == FASTQ) {
-        screen_or_filter_paired_end(cmdline, fra[0], fra[1], kmer_stats);
+        if (cmdline->numthreads == 1) {
+            screen_or_filter_paired_end(cmdline, fra[0], fra[1], kmer_stats);
+        } else {
+            screen_or_filter_parallel(cmdline, fra[0], fra[1], kmer_stats);
+        }
     } else {
         printf("Error: Format not supported.\n");
     }

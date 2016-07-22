@@ -40,6 +40,7 @@ typedef struct {
 uint32_t load_kmer_library(char* filename, int n, int k, HashTable* contaminant_hash);
 long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, KmerStats* stats);
 long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra_1, KmerFileReaderArgs* fra_2, KmerStats* stats);
+long long screen_or_filter_parallel(CmdLine* cmd_line, KmerFileReaderArgs* fra_1, KmerFileReaderArgs* fra_2, KmerStats* stats);
 long long load_seq_into_kmers_hash(KmerFileReaderArgs* fra, KmerFileReaderWrapperArgs* fria);
 void kmer_print_binary_signature(FILE * fp, uint32_t kmer_size, uint32_t num_cols, uint32_t mean_read_len, uint64_t total_seq);
 //void kmer_hash_dump_binary(char *filename, boolean(*condition) (Element* node), HashTable* db_graph);

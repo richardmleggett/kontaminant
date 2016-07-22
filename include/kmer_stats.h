@@ -27,6 +27,9 @@ typedef struct {
     
     // Coverage histogram
     uint32_t contaminated_kmers_per_read[MAX_READ_LENGTH];
+
+    // For parallel access
+    pthread_mutex_t lock;
 } KmerStatsReadCounts;
 
 typedef struct {
@@ -65,6 +68,9 @@ typedef struct {
     double   k1_either_read_not_threshold_unique_by_contaminant_pc[MAX_CONTAMINANTS];
     
     boolean filter_read;
+
+    // For parallel access
+    pthread_mutex_t lock;
 } KmerStatsBothReads;
 
 typedef struct {
@@ -76,6 +82,9 @@ typedef struct {
     uint32_t number_of_files;
     KmerStatsReadCounts* read[2];
     KmerStatsBothReads* both_reads;
+
+    // For parallel access
+    pthread_mutex_t lock;
 } KmerStats;
 
 typedef struct {
@@ -86,12 +95,17 @@ typedef struct {
     uint32_t unique_kmers_from_contaminant[MAX_CONTAMINANTS];
     uint32_t assigned_contaminant;
     uint32_t unique_assigned_contaminant;
+
+    // For parallel access
+    pthread_mutex_t lock;
 } KmerCounts;
 
 void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line);
 void kmer_stats_calculate(KmerStats* stats);
 void update_stats(int r, KmerCounts* counts, KmerStats* stats, CmdLine* cmd_line);
+void update_stats_parallel(int r, KmerCounts* counts, KmerStats* stats, CmdLine* cmd_line);
 boolean update_stats_for_both(KmerStats* stats, CmdLine* cmd_line, KmerCounts* counts_a, KmerCounts* counts_b);
+boolean update_stats_for_both_parallel(KmerStats* stats, CmdLine* cmd_line, KmerCounts* counts_a, KmerCounts* counts_b);
 void kmer_stats_report_to_screen(KmerStats* stats, CmdLine* cmd_line);
 void kmer_stats_compare_contaminant_kmers(HashTable* hash, KmerStats* stats, CmdLine* cmd_line);
 void kmer_stats_write_progress(KmerStats* stats, CmdLine* cmd_line);

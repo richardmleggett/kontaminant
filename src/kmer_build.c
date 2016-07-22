@@ -8,6 +8,7 @@
 #include <time.h>
 #include <errno.h>
 #include <assert.h>
+#include <pthread.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"

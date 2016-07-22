@@ -16,6 +16,7 @@
 #include <math.h>
 #include <time.h>
 #include <errno.h>
+#include <pthread.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"
@@ -34,6 +35,7 @@ void kmer_stats_read_counts_initialise(KmerStatsReadCounts *r)
 {
     int i;
     
+    pthread_mutex_init(&(r->lock), NULL);
     r->number_of_reads = 0;
     r->k1_contaminated_reads = 0;
     r->kn_contaminated_reads = 0;
@@ -60,6 +62,8 @@ void kmer_stats_both_reads_initialise(KmerStatsBothReads *r)
 {
     int i;
     
+    pthread_mutex_init(&(r->lock), NULL);
+                       
     r->number_of_reads = 0;
 
     r->threshold_passed_reads = 0;
@@ -93,6 +97,8 @@ void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line)
     int j;
     int r;
 
+    pthread_mutex_init(&(stats->lock), NULL);
+                       
     stats->n_contaminants = 0;
     stats->number_of_files = 0;
     
@@ -123,6 +129,109 @@ void kmer_stats_initialise(KmerStats* stats, CmdLine* cmd_line)
     }
     kmer_stats_both_reads_initialise(stats->both_reads);
 }
+
+
+/*----------------------------------------------------------------------*
+ * Function:   update_stats_parallel
+ * Purpose:    Update overall read stats from a KmerCounts read structure
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void update_stats_parallel(int r, KmerCounts* counts, KmerStats* stats, CmdLine* cmd_line)
+{
+    int i;
+    int largest_contaminant = 0;
+    int largest_kmers = 0;
+    int unique_largest_contaminant = 0;
+    int unique_largest_kmers = 0;
+    
+    pthread_mutex_lock(&(stats->read[r]->lock));
+    // Update number of reads
+    stats->read[r]->number_of_reads++;
+    // We allow up to the maximum read length. The last element is the cumulative of the reads/contigs that have more than the space we have allocated
+    stats->read[r]->contaminated_kmers_per_read[counts->kmers_loaded < MAX_READ_LENGTH? counts->kmers_loaded:MAX_READ_LENGTH]++;
+    pthread_mutex_unlock(&(stats->read[r]->lock));
+    
+    if (counts->kmers_loaded > 0) {
+        // Go through all contaminants
+        for (i=0; i<stats->n_contaminants; i++) {
+            // If we got a kmer...
+            if (counts->kmers_from_contaminant[i] > 0) {
+                // Have we got more kmers for this contaminant than for any others?
+                if (counts->kmers_from_contaminant[i] > largest_kmers) {
+                    largest_kmers = counts->kmers_from_contaminant[i];
+                    largest_contaminant = i;
+                }
+                
+                // Have we got more unique kmers for this contaminant than for any others?
+                if (counts->unique_kmers_from_contaminant[i] > unique_largest_kmers) {
+                    unique_largest_kmers = counts->unique_kmers_from_contaminant[i];
+                    unique_largest_contaminant = i;
+                }
+                
+                // Update the count of contaminanted reads
+                pthread_mutex_lock(&(stats->read[r]->lock));
+                stats->read[r]->k1_contaminated_reads_by_contaminant[i]++;
+                pthread_mutex_unlock(&(stats->read[r]->lock));
+                
+                // If only one contaminant detected, then we can safely update the number of k1 unique reads
+                if (counts->contaminants_detected == 1) {
+                    pthread_mutex_lock(&(stats->read[r]->lock));
+                    stats->read[r]->k1_unique_contaminated_reads_by_contaminant[i]++;
+                    pthread_mutex_unlock(&(stats->read[r]->lock));
+                }
+            }
+        }
+        
+        // Update number of k1 (not necessarily unique) reads
+        pthread_mutex_lock(&(stats->read[r]->lock));
+        stats->read[r]->k1_contaminated_reads++;
+        pthread_mutex_unlock(&(stats->read[r]->lock));
+    }
+    
+    // If we didn't find any kmers, then this is unclassified
+    if (largest_kmers == 0) {
+        pthread_mutex_lock(&(stats->read[r]->lock));
+        stats->read[r]->reads_unclassified++;
+        pthread_mutex_unlock(&(stats->read[r]->lock));
+        counts->assigned_contaminant = -1;
+    } else {
+        // But if we did, store the higest contaminant (the "assigned" contaminant)
+        pthread_mutex_lock(&(stats->read[r]->lock));
+        stats->read[r]->reads_with_highest_contaminant[largest_contaminant]++;
+        pthread_mutex_unlock(&(stats->read[r]->lock));
+        counts->assigned_contaminant = largest_contaminant;
+    }
+    
+    // If we didn't find any unqique kmers, then...
+    if (unique_largest_kmers == 0) {
+        counts->unique_assigned_contaminant = -1;
+    } else {
+        // But if we did...
+        counts->unique_assigned_contaminant = unique_largest_contaminant;
+    }
+    
+    // If we got over our single read kmer threshold...
+    if (counts->kmers_loaded >= cmd_line->kmer_threshold_read) {
+        for (i=0; i<stats->n_contaminants; i++) {
+            if (counts->kmers_from_contaminant[i] > cmd_line->kmer_threshold_read) {
+                pthread_mutex_lock(&(stats->read[r]->lock));
+                stats->read[r]->kn_contaminated_reads_by_contaminant[i]++;
+                pthread_mutex_unlock(&(stats->read[r]->lock));
+                if (counts->contaminants_detected == 1) {
+                    pthread_mutex_lock(&(stats->read[r]->lock));
+                    stats->read[r]->kn_unique_contaminated_reads_by_contaminant[i]++;
+                    pthread_mutex_unlock(&(stats->read[r]->lock));
+                }
+            }
+        }
+        
+        pthread_mutex_lock(&(stats->read[r]->lock));
+        stats->read[r]->kn_contaminated_reads++;
+        pthread_mutex_unlock(&(stats->read[r]->lock));
+    }
+}
+
 
 /*----------------------------------------------------------------------*
  * Function:   update_stats
@@ -206,6 +315,146 @@ void update_stats(int r, KmerCounts* counts, KmerStats* stats, CmdLine* cmd_line
         stats->read[r]->kn_contaminated_reads++;
     }
 }
+
+
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+boolean update_stats_for_both_parallel(KmerStats* stats, CmdLine* cmd_line, KmerCounts* counts_a, KmerCounts* counts_b)
+{
+    boolean threshold_met = false;
+    boolean unique_threshold_met = false;
+    int i;
+    int largest_contaminant = 0;
+    int largest_kmers = 0;
+    int one_in_both = 0;
+    int one_in_either = 0;
+    int unique_largest_contaminant = 0;
+    int unique_largest_kmers = 0;
+    int unique_one_in_both = 0;
+    int unique_one_in_either = 0;
+    boolean filter_read = false;
+    
+    // Go through all contaminants and find best match for this pair
+    for (i=0; i<stats->n_contaminants; i++) {
+        // First for ALL kmers... after that for unique kmers
+        int a = counts_a->kmers_from_contaminant[i];
+        int b = counts_b->kmers_from_contaminant[i];
+        int t = a + b;
+        
+        // If we got a kmer for this contaminant...
+        if ((a >= cmd_line->kmer_threshold_read) &&
+            (b >= cmd_line->kmer_threshold_read) &&
+            (t >= cmd_line->kmer_threshold_overall)) {
+            // It meets our thresholds. Is it the best yet?
+            if (t > largest_kmers) {
+                largest_kmers = t;
+                largest_contaminant = i;
+            }
+            threshold_met = true;
+        } else if (!threshold_met) {
+            if ((a >= 1) && (b >= 1)) {
+                // One or more in both
+                one_in_both++;
+                if (t > largest_kmers) {
+                    largest_kmers  = t;
+                    largest_contaminant = i;
+                }
+            } else if (((a >= 1) && (b == 0)) || ((a == 0) && (b >= 1))) {
+                // One or more in A or B
+                one_in_either++;
+                if (one_in_both == 0) {
+                    if (t > largest_kmers) {
+                        largest_kmers  = t;
+                        largest_contaminant = i;
+                    }
+                }
+            }
+        }
+        
+        // Now the unique kmers
+        a = counts_a->unique_kmers_from_contaminant[i];
+        b = counts_b->unique_kmers_from_contaminant[i];
+        t = a + b;
+        
+        // If we got a kmer for this contaminant...
+        if ((a >= cmd_line->kmer_threshold_read) &&
+            (b >= cmd_line->kmer_threshold_read) &&
+            (t >= cmd_line->kmer_threshold_overall)) {
+            // It meets our thresholds. Is it the best yet?
+            if (t > unique_largest_kmers) {
+                unique_largest_kmers = t;
+                unique_largest_contaminant = i;
+            }
+            unique_threshold_met = true;
+        } else if (!unique_threshold_met) {
+            if ((a >= 1) && (b >= 1)) {
+                // One or more in both
+                unique_one_in_both++;
+                if (t > unique_largest_kmers) {
+                    unique_largest_kmers = t;
+                    unique_largest_contaminant = i;
+                }
+            } else if (((a >= 1) && (b == 0)) || ((a == 0) && (b >= 1))) {
+                // One or more in A or B
+                unique_one_in_either++;
+                if (unique_one_in_both == 0) {
+                    if (t > unique_largest_kmers) {
+                        unique_largest_kmers = t;
+                        unique_largest_contaminant = i;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Update read counts
+    if (threshold_met) {
+        pthread_mutex_lock(&(stats->both_reads->lock));
+        stats->both_reads->threshold_passed_reads++;
+        stats->both_reads->threshold_passed_reads_by_contaminant[largest_contaminant]++;
+        pthread_mutex_unlock(&(stats->both_reads->lock));
+        if (cmd_line->filter_unique == false) {
+            filter_read = true;
+        }
+    } else if (one_in_both > 0) {
+        pthread_mutex_lock(&(stats->both_reads->lock));
+        stats->both_reads->k1_both_reads_not_threshold++;
+        stats->both_reads->k1_both_reads_not_threshold_by_contaminant[largest_contaminant]++;
+        pthread_mutex_unlock(&(stats->both_reads->lock));
+    } else if (one_in_either > 0) {
+        pthread_mutex_lock(&(stats->both_reads->lock));
+        stats->both_reads->k1_either_read_not_threshold++;
+        stats->both_reads->k1_either_read_not_threshold_by_contaminant[largest_contaminant]++;
+        pthread_mutex_unlock(&(stats->both_reads->lock));
+    }
+    
+    if (unique_threshold_met) {
+        pthread_mutex_lock(&(stats->both_reads->lock));
+        stats->both_reads->threshold_passed_reads_unique++;
+        stats->both_reads->threshold_passed_reads_unique_by_contaminant[unique_largest_contaminant]++;
+        pthread_mutex_unlock(&(stats->both_reads->lock));
+        filter_read = true;
+    } else if (unique_one_in_both > 0) {
+        pthread_mutex_lock(&(stats->both_reads->lock));
+        stats->both_reads->k1_both_reads_not_threshold_unique++;
+        stats->both_reads->k1_both_reads_not_threshold_unique_by_contaminant[unique_largest_contaminant]++;
+        pthread_mutex_unlock(&(stats->both_reads->lock));
+    } else if (unique_one_in_either > 0) {
+        pthread_mutex_lock(&(stats->both_reads->lock));
+        stats->both_reads->k1_either_read_not_threshold_unique++;
+        stats->both_reads->k1_either_read_not_threshold_unique_by_contaminant[unique_largest_contaminant]++;
+        pthread_mutex_unlock(&(stats->both_reads->lock));
+    }
+    
+    return filter_read;
+}
+
+
 
 /*----------------------------------------------------------------------*
  * Function:

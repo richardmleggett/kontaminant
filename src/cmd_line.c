@@ -16,6 +16,7 @@
 #include <math.h>
 #include <time.h>
 #include <errno.h>
+#include <pthread.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"
@@ -46,7 +47,7 @@ void initialise_cmdline(CmdLine* c)
     c->contaminant_dir = malloc(MAX_PATH_LENGTH);
     strcpy(c->contaminant_dir, "/Users/leggettr/Documents/Projects/kscreen/contaminants");
     c->output_prefix = 0;
-    c->subsample_ratio = 0.1;
+    c->subsample_ratio = 1;
     c->quality_score_offset = 33;
     c->quality_score_threshold = 0;
     c->format = FASTQ;
@@ -60,6 +61,7 @@ void initialise_cmdline(CmdLine* c)
     c->progress_delay = 60;
     c->read_summary_file = 0;
     c->filter_unique = false;
+    c->numthreads = 1;
 }
 
 /*----------------------------------------------------------------------*
@@ -78,9 +80,9 @@ void usage(void)
            "    [-i | --index] indexes a reference.\n" \
            "Kmer options:\n" \
            "    [-k | --kmer_size] Kmer size (default 21).\n" \
-           "    [-t | --threshold] Kmer threshold for both reads(default 10).\n" \
-           "    [-v | --readthreshold] Kmer threshold for individual reads (default 1).\n" \
-           "    [-y | --subsample_ratio] Ratio of reads to sample (default 0.1).\n" \
+           "    [-t | --threshold] Kmer threshold for both reads (default 10).\n" \
+           "    [-l | --readthreshold] Kmer threshold for individual reads (default 1).\n" \
+           "    [-y | --subsample_ratio] Ratio of reads to sample >0 <=1 (default 1).\n" \
            "    [-u | --unique] Count only unique kmers (default off).\n" \
            "Input options:\n" \
            "    [-1 | --input_one] Input R1 file (or reference FASTA for indexing).\n" \
@@ -128,7 +130,8 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"kmer_size", required_argument, NULL, 'k'},
         {"readthreshold", required_argument, NULL, 'l'},
         {"mem_height", required_argument, NULL, 'n'},
-        {"output_prefix", required_argument, NULL, 'o'},
+        {"mem_height", required_argument, NULL, 'n'},
+        {"numthreads", required_argument, NULL, 'N'},
         {"progress", required_argument, NULL, 'p'},
         {"removed_prefix", required_argument, NULL, 'r'},
         {"screen", no_argument, NULL, 's'},
@@ -148,7 +151,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hij:k:l:n:o:p:r:st:uw:xy:z:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hij:k:l:n:N:o:p:r:st:uw:xy:z:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case '1':
@@ -294,6 +297,16 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     exit(1);
                 }
                 c->bucket_bits = atoi(optarg);
+                break;
+            case 'N':
+                if (optarg == NULL) {
+                    printf("[-N | --numthreads] option requires int argument");
+                    exit(1);
+                }
+                c->numthreads = atoi(optarg);
+                if (c->numthreads > 32) {
+                    c->numthreads = 32;
+                }
                 break;
             case 'o':
                 if (optarg==NULL) {

@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <limits.h>
+#include <pthread.h>
 #include "global.h"
 #include "binary_kmer.h"
 #include "element.h"
@@ -26,6 +27,11 @@
 #include "kmer_stats.h"
 #include "kmer_reader.h"
 
+#define MAX_THREADS 32
+#define STATE_READY 1
+#define STATE_DATA 2
+#define STATE_END 3
+
 struct print_binary_args {
     boolean(*condition) (Element* node);
     long long count;
@@ -33,6 +39,31 @@ struct print_binary_args {
     short kmer_size;
 };
 
+typedef struct {
+    HashTable* kmer_hash;
+    KmerStats* stats;
+    KmerCounts counts[2];
+    CmdLine* cmd_line;
+    int number_of_files;
+    int n_contaminants;
+    int kmer_size;
+    char* id[2];
+    char* seq[2];
+} ReadThreadData;
+
+int thread_count = 0;
+int num_threads = 1;
+int submitted = 0;
+int completed = 0;
+pthread_t thread[MAX_THREADS];
+int thread_state[MAX_THREADS];
+ReadThreadData* thread_data[MAX_THREADS];
+pthread_mutex_t mutex_summary_file;
+pthread_mutex_t mutex_counts;
+pthread_mutex_t mutex_nr;
+pthread_mutex_t mutex_hash[256];
+int reads_passed = 0;
+int reads_processed = 0;
 
 /*----------------------------------------------------------------------*
  * Function:
@@ -43,7 +74,8 @@ struct print_binary_args {
 void initialise_kmer_counts(int n, KmerCounts* counts)
 {
     int i;
-        
+    
+    pthread_mutex_init(&(counts->lock), NULL);
     counts->n_contaminants = n;
     counts->kmers_loaded = 0;
     counts->contaminants_detected = 0;
@@ -359,6 +391,475 @@ long long screen_kmers_from_file(KmerFileReaderArgs* fra, CmdLine* cmd_line, Kme
  * Parameters: None
  * Returns:    None
  *----------------------------------------------------------------------*/
+void element_get_and_increment_read_coverages(HashTable* hash_table, Element *node, int r, int* a, int* b)
+{
+    int flags;
+    int mutex_index = (int)node->kmer & 255;
+    
+    pthread_mutex_lock(&(mutex_hash[mutex_index]));
+#ifdef STORE_FULL_COVERAGE
+    *a = node->coverage[0];
+    *b = node->coverage[1];
+    node->coverage[r]++;
+    pthread_mutex_unlock(&(mutex_hash[mutex_index]));
+#else
+    flags = node->flags;
+    if (r == 0) {
+        node->flags = node->flags | COVERAGE_L;
+    } else {
+        node->flags = node->flags | COVERAGE_R;
+    }
+    pthread_mutex_unlock(&(mutex_hash[mutex_index]));
+    *a = flags & COVERAGE_L ? 1:0;
+    *b = flags & COVERAGE_R ? 1:0;
+#endif
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+int read_indefinite_length_read(char** seq, FILE* fp) {
+    int chunk_size = 1024;
+    int current_size = chunk_size;
+    int read_length = 0;
+    char* new_block;
+    int got_read = 0;
+    
+    *seq = malloc(current_size);
+    if (!*seq) {
+        printf("Error: can't allocate memory for read\n");
+        exit(1);
+    }
+    
+    while ((got_read == 0) && (fgets((*seq) + read_length, current_size - read_length, fp))) {
+        int l = strlen(*seq);
+        
+        // Look for new line - got everything
+        if ((*seq)[l-1] == '\n') {
+            (*seq)[l-1] = 0;
+            got_read = 1;
+        } else {
+            read_length = l;
+            current_size += chunk_size;
+            new_block = realloc(*seq, current_size);
+            if (!new_block) {
+                printf("Error: can't allocate memory for read\n");
+                exit(1);
+            } else {
+                *seq = new_block;
+            }
+        }
+    }
+   
+    return strlen(*seq);
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+int get_fastq_read(FILE* fp, char** id, char** seq)
+{
+    int l = 0;
+    char* qhead;
+    char* quals;
+    
+    *id = malloc(1024);
+    qhead = malloc(1024);
+    
+    if (fgets(*id, 1024, fp)) {
+        l = read_indefinite_length_read(seq, fp);
+        if (fgets(qhead, 1024, fp)) {
+            if (read_indefinite_length_read(&quals, fp) == 0) {
+                l = 0;
+                free(quals);
+            }
+        } else {
+            l = 0;
+        }
+    } else {
+        l = 0;
+    }
+    
+    return l;
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+int get_next_kmer_from_string(char* str, char* kmer, int* offset, int kmer_size) {
+    int n=0;
+    char c;
+    
+    while ((n < kmer_size) && (((*offset) + n) < strlen(str))) {
+        c = str[(*offset) + n];
+        if ((c == 'A') || (c == 'a') ||
+            (c == 'C') || (c == 'c') ||
+            (c == 'G') || (c == 'g') ||
+            (c == 'T') || (c == 't')) {
+            kmer[n++] = c;
+        } else {
+            *offset = *offset + n + 1;
+            n = 0;
+            printf("Undefined found: %c\n", c);
+        }
+    }
+    *offset = *offset + 1;
+    kmer[n] = 0;
+    return n;
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void* read_process_thread(void* a)
+{
+    int n = (int)a;
+    int r;
+    int read_offset;
+    int c;
+    int node_cov[2];
+    struct timespec req, rem;
+    BinaryKmer kmer;
+    BinaryKmer tmp_kmer;
+    Element *current_node = NULL;
+    char kmer_str[1024];
+    ReadThreadData* rtd;
+    boolean filter_read = false;
+    boolean increment_both_kmers_seen = false;
+    boolean increment_read_kmers_seen = false;
+    
+    req.tv_sec = 0;
+    req.tv_nsec = 10;
+    
+    while (thread_state[n] != STATE_END) {
+        if (thread_state[n] == STATE_DATA) {
+            // Get data
+            rtd = thread_data[n];
+            assert(rtd != 0);
+        
+            // Process reads
+            filter_read = false;
+            for (r=0; r<rtd->number_of_files; r++) {
+                initialise_kmer_counts(rtd->n_contaminants, &(rtd->counts[r]));
+                read_offset = 0;
+                while (read_offset < strlen(rtd->seq[r])-rtd->kmer_size+1) {
+                    // Get next kmer
+                    if (get_next_kmer_from_string(rtd->seq[r], kmer_str, &read_offset, rtd->kmer_size) == rtd->kmer_size) {
+                        // Convert to binary kmer and lookup
+                        seq_to_binary_kmer(kmer_str, rtd->kmer_size, &kmer);
+                        Key key = element_get_key(&kmer, rtd->kmer_size, &tmp_kmer);
+                        current_node = hash_table_find(key, rtd->kmer_hash);
+                        if (current_node != NULL) {
+                            int contaminant_count = 0;
+                            int contaminant_index = 0;
+                            
+                            element_get_and_increment_read_coverages(rtd->kmer_hash, current_node, r, &(node_cov[0]), &(node_cov[1]));
+                            
+                            /* Go through all contaminants */
+                            for (c=0; c<rtd->counts[r].n_contaminants; c++) {
+                                /* Check if kmer is found in this contaminant */
+                                if (element_get_contaminant_bit(current_node, c) > 0) {
+                                    /* Count how many contaminants have this kmer */
+                                    contaminant_count++;
+                                    contaminant_index = c;
+                                    
+                                    /* If the count of kmers from this contaminant is 0, then this is the first kmer we've
+                                     seen from this contaminant, so we update the count of number of contaminants seen */
+                                    if (rtd->counts[r].kmers_from_contaminant[c] == 0) {
+                                        rtd->counts[r].contaminants_detected++;
+                                    }
+                                    
+                                    /* Update the count of number of kmers from this contaminant in this read */
+                                    rtd->counts[r].kmers_from_contaminant[c]++;
+                                    
+                                    /* Now for the stats for both reads: If there is no coverage for this kmer in either
+                                       read, then this is the first time we've seen this kmer, so update the count of kmers
+                                       seen. */
+                                    increment_both_kmers_seen = false;
+                                    increment_read_kmers_seen = false;
+                                    
+                                    if (node_cov[r] == 0) {
+                                        increment_read_kmers_seen = 1;
+                                        if ((node_cov[0] == 0) && (node_cov[1] == 0)) {
+                                            increment_both_kmers_seen = 1;
+                                        }
+                                    }
+                                    
+                                    if (increment_read_kmers_seen) {
+                                        pthread_mutex_lock(&(rtd->stats->read[r]->lock));
+                                        rtd->stats->read[r]->contaminant_kmers_seen[c]++;
+                                        pthread_mutex_unlock(&(rtd->stats->read[r]->lock));
+                                    }
+                                    
+                                    if (increment_both_kmers_seen) {
+                                        pthread_mutex_lock(&(rtd->stats->both_reads->lock));
+                                        rtd->stats->both_reads->contaminant_kmers_seen[c]++;
+                                        pthread_mutex_unlock(&(rtd->stats->both_reads->lock));
+                                    }
+                                }
+                            }
+                            
+                            if (contaminant_count == 1) {
+                                rtd->counts[r].unique_kmers_from_contaminant[contaminant_index]++;
+                            }
+                            
+                            /* Update count of how many times we've seen this kmer in this read */
+                            rtd->counts[r].kmers_loaded++;
+                        } // End if (current_node != NULL)
+                    } else {
+                        printf("Error in kmer\n");
+                    }
+                } // End while read_offset
+                
+                // Open fp_read_summary...
+                //if (fp_read_summary) {
+                //    pthread_mutex_lock(&mutex_summary_file);
+                //    fprintf(fp_read_summary, "%s", rtd->id[r]);
+                //    fprintf(fp_read_summary, "\t%d", rtd->counts[r].contaminants_detected);
+                //    fprintf(fp_read_summary, "\t%d", rtd->counts[r].kmers_loaded);
+                //    for (c=0; c<rtd->counts[r].n_contaminants; c++) {
+                //        fprintf(fp_read_summary, "\t%d", rtd->counts[r].kmers_from_contaminant[j]);
+                //    }
+                //    fprintf(fp_read_summary, "\n");
+                //    pthread_mutex_unlock(&mutex_summary_file);
+                //}
+                
+                // Update read count in hash table
+                //pthread_mutex_lock(&mutex_hash);
+                //hash_table_add_number_of_reads(1, rtd->kmer_hash);
+                //pthread_mutex_unlock(&mutex_hash);
+
+                // Update global stats with reads
+                update_stats_parallel(r, &(rtd->counts[r]), rtd->stats, rtd->cmd_line);
+            } // End r loop
+
+            // Update global stats
+            pthread_mutex_lock(&mutex_nr);
+            rtd->stats->both_reads->number_of_reads++;
+            pthread_mutex_unlock(&mutex_nr);
+            filter_read = update_stats_for_both_parallel(rtd->stats, rtd->cmd_line, &(rtd->counts[0]), &(rtd->counts[1]));
+            
+            // DO FILTERING?
+            if (rtd->cmd_line->run_type == DO_FILTER) {
+                printf("This is embarressing. The filtering code is missing...\n");
+                exit(1);
+            }
+            
+            // Free data
+            for (r=0; r<rtd->number_of_files; r++) {
+                if (rtd->id[r]) {
+                    free(rtd->id[r]);
+                }
+                if (rtd->seq[r]) {
+                    free(rtd->seq[r]);
+                }
+            }
+            free(thread_data[n]);
+            
+            // Set state ready to receive another pair
+            pthread_mutex_lock(&mutex_counts);
+            reads_processed++;
+            pthread_mutex_unlock(&mutex_counts);
+            thread_state[n] = STATE_READY;
+        } else {
+            // Sleep before checking again
+            nanosleep(&req, &rem);
+        }
+    } // While not STATE_END
+    
+    return NULL;
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+void pass_to_a_thread(ReadThreadData * rtd)
+{
+    int i;
+    int n = -1;
+    struct timespec req, rem;
+    
+    assert(rtd != 0);
+
+    req.tv_sec = 0;
+    req.tv_nsec = 10;
+
+    // Find a thread in the READY state
+    while (n == -1) {
+        for (i=0; i<num_threads-1; i++) {
+            if (thread_state[i] == STATE_READY) {
+                n = i;
+                break;
+            }
+        }
+        nanosleep(&req, &rem);
+    }
+
+    // Pass thread the data
+    thread_data[n] = rtd;
+    //printf("Setting thread %d to %x\n", n, rtd);
+    thread_state[n] = STATE_DATA;
+    reads_passed++;
+}
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
+long long screen_or_filter_parallel(CmdLine* cmd_line, KmerFileReaderArgs* fra_1, KmerFileReaderArgs* fra_2, KmerStats* stats)
+{
+    HashTable* kmer_hash;
+    KmerFileReaderArgs* fra[2];
+    FILE* fp_in[2];
+    time_t time_previous = 0;
+    time_t time_now = 0;
+    int number_of_files = 1;
+    long int number_of_pairs = 0;
+    long int pairs_processed = 0;
+    long int i;
+    int rc;
+    struct timespec req, rem;
+    int read_interval = (int)(1.0 / cmd_line->subsample_ratio);
+
+    num_threads = cmd_line->numthreads;
+    if (num_threads < 2) {
+        num_threads = 2;
+    }
+    
+    printf("Running with %d threads\n", num_threads);
+    printf("Checking every %d read\n", read_interval);
+    
+    pthread_mutex_init(&mutex_summary_file, NULL);
+    pthread_mutex_init(&mutex_counts, NULL);
+    pthread_mutex_init(&mutex_nr, NULL);
+    
+    for (i=0; i<256; i++) {
+        pthread_mutex_init(&(mutex_hash[i]), NULL);
+    }
+    
+    // Create threads to process read pairs
+    for (i=0; i<num_threads-1; i++) {
+        thread_data[i] = 0;
+        thread_state[i] = STATE_READY;
+        rc = pthread_create(&(thread[i]), NULL, read_process_thread, (void *)i);
+        if (rc) {
+            printf("Error: return code from pthread_create() is %d\n", rc);
+            exit(1);
+        }
+    }
+    
+    // Get hash table and initialise kmer counts structure
+    kmer_hash = fra_1->KmerHash;
+    
+    // Put file reader args and stats into array
+    assert(fra_1 != 0);
+    fra[0] = fra_1;
+    fra[1] = fra_2;
+    
+    // And for second...
+    if (fra[1] != 0) {
+        number_of_files = 2;
+        assert(fra_1->KmerHash == fra_2->KmerHash);
+    }
+
+    // Allocate...
+    for (i=0; i<number_of_files; i++) {
+        fp_in[i] = fopen(fra[i]->input_filename, "r");
+        if (!fp_in[i]) {
+            printf("Error: can't open input file %s\n", fra[i]->input_filename);
+            exit(1);
+        }
+    }
+    
+    // Get reads
+    while (!feof(fp_in[0])) {
+        ReadThreadData* rtd = calloc(1, sizeof(ReadThreadData));
+        int reads = 0;
+        
+        if (!rtd) {
+            printf("Error: can't get memory for read thread data!\n");
+            exit(1);
+        }
+        
+        rtd->number_of_files = number_of_files;
+        rtd->kmer_size = cmd_line->kmer_size;
+        rtd->cmd_line = cmd_line;
+        rtd->kmer_hash = kmer_hash;
+        rtd->stats = stats;
+        rtd->n_contaminants = stats->n_contaminants;
+        
+        for (i=0; i<number_of_files; i++) {
+            int l;
+            
+            l = get_fastq_read(fp_in[i], &(rtd->id[i]), &(rtd->seq[i]));
+            if (l > 0) {
+                reads++;
+            }
+        }
+        
+        // Pass reads to a thread
+        if (reads == 2) {
+            if ((number_of_pairs % read_interval) == 0) {
+                pass_to_a_thread(rtd);
+                pairs_processed++;
+            }
+            number_of_pairs++;
+        }
+        
+        // Write progress report?
+        //if (cmd_line->write_progress_file) {
+        //    time(&time_now);
+        //    if (difftime(time_now, time_previous) > cmd_line->progress_delay) {
+        //        kmer_stats_write_progress(stats, cmd_line);
+        //        time_previous = time_now;
+        //    }
+        //}
+    }
+    
+    // Close files
+    for (i=0; i<number_of_files; i++) {
+        fclose(fp_in[i]);
+    }
+    
+    // Wait for threads to finish...
+    req.tv_sec = 0;
+    req.tv_nsec = 10;
+    for (i=0; i<num_threads-1; i++) {
+        while (thread_state[i] != STATE_READY) {
+            nanosleep(&req, &rem);
+        }
+        thread_state[i] = STATE_END;
+    }
+    printf("Done reading %ld reads\n\n", pairs_processed);
+    
+    return 0;
+}
+
+
+
+/*----------------------------------------------------------------------*
+ * Function:
+ * Purpose:
+ * Parameters: None
+ * Returns:    None
+ *----------------------------------------------------------------------*/
 long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra_1, KmerFileReaderArgs* fra_2, KmerStats* stats)
 {
     HashTable* kmer_hash;
@@ -376,7 +877,11 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
     time_t time_now = 0;
     FILE* fp_read_summary = 0;
     int nr = 0;
-
+    long int number_of_pairs = 0;
+    int read_interval = (int)(1.0 / cmd_line->subsample_ratio);
+    
+    printf("Checking every %d read\n", read_interval);    
+    
     // Get hash table and initialise kmer counts structure
     kmer_hash = fra_1->KmerHash;
     
@@ -452,82 +957,89 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
             // Update length read
             seq_length[i] += (long long)entry_length[i];
         
-            // Get sliding windows
-            nkmers = get_sliding_windows_from_sequence(frw[i]->seq->seq, frw[i]->seq->qual, entry_length[i], fra[i]->quality_cut_off, kmer_hash->kmer_size, windows[i], windows[i]->max_nwindows, windows[i]->max_kmers, false, 0);
+            if ((number_of_pairs % read_interval) == 0) {
+                // Get sliding windows
+                nkmers = get_sliding_windows_from_sequence(frw[i]->seq->seq, frw[i]->seq->qual, entry_length[i], fra[i]->quality_cut_off, kmer_hash->kmer_size, windows[i], windows[i]->max_nwindows, windows[i]->max_kmers, false, 0);
 
-            if (frw[i]->full_entry == false) {
-                // If we didn't get a full entry then error
-                printf("Error: Line length too long.\n");
-                return 0;
+                if (frw[i]->full_entry == false) {
+                    // If we didn't get a full entry then error
+                    printf("Error: Line length too long.\n");
+                    return 0;
+                }
+                
+                if (nkmers == 0) {
+                    // Bad read
+                    fra[i]->bad_reads++;
+                } else {
+                    // Load kmers
+                    kmer_hash_load_sliding_windows(&previous_node, kmer_hash, true, fra[i], kmer_hash->kmer_size, windows[i], i, stats, &(counts[i]));
+                    
+                    if (fp_read_summary) {
+                        fprintf(fp_read_summary, "%s", frw[i]->seq->name);
+                        fprintf(fp_read_summary, "\t%d", counts[i].contaminants_detected);
+                        fprintf(fp_read_summary, "\t%d", counts[i].kmers_loaded);
+                        for (j=0; j<stats->n_contaminants; j++) {
+                            fprintf(fp_read_summary, "\t%d", counts[i].kmers_from_contaminant[j]);
+                        }
+                        fprintf(fp_read_summary, "\n");
+                    }
+                    
+                    hash_table_add_number_of_reads(1, kmer_hash);
+                    update_stats(i, &(counts[i]), stats, cmd_line);
+                    nr++;
+                }
+            }
+        } // End number_of_files loop
+        
+        
+        if ((number_of_pairs % read_interval) == 0) {
+
+            if (number_of_files == 2) {
+                // Check for not getting both reads
+                if (((entry_length[0] == 0) && (entry_length[1] > 0)) ||
+                    ((entry_length[1] == 0) && (entry_length[0] > 0))) {
+                    printf("Error: differing number of entries in files (%d %d %d).\n", nr, entry_length[0], entry_length[1]);
+                    return 0;
+                }
+
+                // Update both read stats if we got two reads
+                if ((entry_length[0] > 0) && (entry_length[1] > 0)) {
+                    stats->both_reads->number_of_reads++;
+                    filter_read = update_stats_for_both(stats, cmd_line, &(counts[0]), &(counts[1]));
+                }
             }
             
-            if (nkmers == 0) {
-                // Bad read
-                fra[i]->bad_reads++;
-            } else {
-                // Load kmers
-                kmer_hash_load_sliding_windows(&previous_node, kmer_hash, true, fra[i], kmer_hash->kmer_size, windows[i], i, stats, &(counts[i]));
-                
-                if (fp_read_summary) {
-                    fprintf(fp_read_summary, "%s", frw[i]->seq->name);
-                    fprintf(fp_read_summary, "\t%d", counts[i].contaminants_detected);
-                    fprintf(fp_read_summary, "\t%d", counts[i].kmers_loaded);
-                    for (j=0; j<stats->n_contaminants; j++) {
-                        fprintf(fp_read_summary, "\t%d", counts[i].kmers_from_contaminant[j]);
-                    }
-                    fprintf(fp_read_summary, "\n");
-                }
-                
-                hash_table_add_number_of_reads(1, kmer_hash);
-                update_stats(i, &(counts[i]), stats, cmd_line);
-                nr++;
-            }
-        }
-        
-        
-        if (number_of_files == 2) {
-            // Check for not getting both reads
-            if (((entry_length[0] == 0) && (entry_length[1] > 0)) ||
-                ((entry_length[1] == 0) && (entry_length[0] > 0))) {
-                printf("Error: differing number of entries in files (%d %d %d).\n", nr, entry_length[0], entry_length[1]);
-                return 0;
-            }
-
-            // Update both read stats if we got two reads
-            if ((entry_length[0] > 0) && (entry_length[1] > 0)) {
-                stats->both_reads->number_of_reads++;
-                filter_read = update_stats_for_both(stats, cmd_line, &(counts[0]), &(counts[1]));
-            }
-        }
-        
-        // Output reads
-        if (cmd_line->run_type == DO_FILTER) {
-            for (i=0; i<number_of_files; i++) {
-                if (entry_length[i] > 0) {
-                    FILE* fp_out = NULL;
-                    
-                    // Keep or filter?
-                    if (filter_read == true) {
-                        fp_out = frw[i]->removed_fp;
-                    } else {
-                        fp_out = frw[i]->output_fp;
-                    }
-                    
-                    if (fp_out) {
-                        char temp_string[frw[i]->seq->length + 1];
-                        fprintf(fp_out, "%s%s\n+\n%s\n", frw[i]->seq->id_string, frw[i]->seq->seq, sequence_get_quality_string(frw[i]->seq, temp_string));
+            // Output reads
+            if (cmd_line->run_type == DO_FILTER) {
+                for (i=0; i<number_of_files; i++) {
+                    if (entry_length[i] > 0) {
+                        FILE* fp_out = NULL;
+                        
+                        // Keep or filter?
+                        if (filter_read == true) {
+                            fp_out = frw[i]->removed_fp;
+                        } else {
+                            fp_out = frw[i]->output_fp;
+                        }
+                        
+                        if (fp_out) {
+                            char temp_string[frw[i]->seq->length + 1];
+                            fprintf(fp_out, "%s%s\n+\n%s\n", frw[i]->seq->id_string, frw[i]->seq->seq, sequence_get_quality_string(frw[i]->seq, temp_string));
+                        }
                     }
                 }
             }
-        }
 
-        if (cmd_line->write_progress_file) {
-            time(&time_now);
-            if (difftime(time_now, time_previous) > cmd_line->progress_delay) {
-                kmer_stats_write_progress(stats, cmd_line);
-                time_previous = time_now;
+            if (cmd_line->write_progress_file) {
+                time(&time_now);
+                if (difftime(time_now, time_previous) > cmd_line->progress_delay) {
+                    kmer_stats_write_progress(stats, cmd_line);
+                    time_previous = time_now;
+                }
             }
         }
+        
+        number_of_pairs++;
     }
     
     if (cmd_line->write_progress_file) {

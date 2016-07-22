@@ -42,6 +42,7 @@ typedef struct {
     double subsample_ratio;
     boolean filter_unique;
     char* read_summary_file;
+    int numthreads;
 } CmdLine;
 
 void initialise_cmdline(CmdLine* c);
