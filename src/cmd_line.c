@@ -82,7 +82,7 @@ void usage(void)
            "    [-k | --kmer_size] Kmer size (default 21).\n" \
            "    [-t | --threshold] Kmer threshold for both reads (default 10).\n" \
            "    [-l | --readthreshold] Kmer threshold for individual reads (default 1).\n" \
-           "    [-y | --subsample_ratio] Ratio of reads to sample >0 <=1 (default 1).\n" \
+           "    [-y | --subsample] Ratio of reads to sample >0 <=1 (default 1).\n" \
            "    [-u | --unique] Count only unique kmers (default off).\n" \
            "Input options:\n" \
            "    [-1 | --input_one] Input R1 file (or reference FASTA for indexing).\n" \
@@ -139,7 +139,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"unique", no_argument, NULL, 'u'},
         {"progress_interval", required_argument, NULL, 'w'},
         {"keep_contaminated_reads", no_argument, NULL, 'x'},
-        {"subsample_ratio", required_argument, NULL, 'y'},
+        {"subsample", required_argument, NULL, 'y'},
         {"file_of_files", required_argument, NULL, 'z'},
         {0, 0, 0, 0}
     };
