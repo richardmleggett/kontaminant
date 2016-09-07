@@ -509,7 +509,7 @@ int get_next_kmer_from_string(char* str, char* kmer, int* offset, int kmer_size)
         } else {
             *offset = *offset + n + 1;
             n = 0;
-            printf("Undefined found: %c\n", c);
+            //printf("Undefined found: %c\n", c);
         }
     }
     *offset = *offset + 1;
@@ -728,15 +728,16 @@ long long screen_or_filter_parallel(CmdLine* cmd_line, KmerFileReaderArgs* fra_1
     HashTable* kmer_hash;
     KmerFileReaderArgs* fra[2];
     FILE* fp_in[2];
-    time_t time_previous = 0;
-    time_t time_now = 0;
+    //time_t time_previous = 0;
+    //time_t time_now = 0;
     int number_of_files = 1;
     long int number_of_pairs = 0;
     long int pairs_processed = 0;
+    double read_write_counter = 1.0;
     long int i;
     int rc;
     struct timespec req, rem;
-    int read_interval = (int)(1.0 / cmd_line->subsample_ratio);
+    double read_interval = (1.0 / cmd_line->subsample_ratio);
 
     num_threads = cmd_line->numthreads;
     if (num_threads < 2) {
@@ -744,7 +745,7 @@ long long screen_or_filter_parallel(CmdLine* cmd_line, KmerFileReaderArgs* fra_1
     }
     
     printf("Running with %d threads\n", num_threads);
-    printf("Checking every %d read\n", read_interval);
+    printf("Checking every %f read\n", read_interval);
     
     pthread_mutex_init(&mutex_summary_file, NULL);
     pthread_mutex_init(&mutex_counts, NULL);
@@ -816,11 +817,14 @@ long long screen_or_filter_parallel(CmdLine* cmd_line, KmerFileReaderArgs* fra_1
         
         // Pass reads to a thread
         if (reads == 2) {
-            if ((number_of_pairs % read_interval) == 0) {
+            //if ((number_of_pairs % read_interval) == 0) {
+            if (read_write_counter >= read_interval) {
+                read_write_counter -= read_interval;
                 pass_to_a_thread(rtd);
                 pairs_processed++;
             }
             number_of_pairs++;
+            read_write_counter++;
         }
         
         // Write progress report?
@@ -878,9 +882,10 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
     FILE* fp_read_summary = 0;
     int nr = 0;
     long int number_of_pairs = 0;
-    int read_interval = (int)(1.0 / cmd_line->subsample_ratio);
+    double read_interval = (1.0 / cmd_line->subsample_ratio);
+    double read_write_counter = 1.0;
     
-    printf("Checking every %d read\n", read_interval);    
+    printf("Checking every %f read\n", read_interval);
     
     // Get hash table and initialise kmer counts structure
     kmer_hash = fra_1->KmerHash;
@@ -957,7 +962,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
             // Update length read
             seq_length[i] += (long long)entry_length[i];
         
-            if ((number_of_pairs % read_interval) == 0) {
+            if (read_write_counter >= read_interval) {
                 // Get sliding windows
                 nkmers = get_sliding_windows_from_sequence(frw[i]->seq->seq, frw[i]->seq->qual, entry_length[i], fra[i]->quality_cut_off, kmer_hash->kmer_size, windows[i], windows[i]->max_nwindows, windows[i]->max_kmers, false, 0);
 
@@ -991,8 +996,8 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
             }
         } // End number_of_files loop
         
-        
-        if ((number_of_pairs % read_interval) == 0) {
+        if (read_write_counter >= read_interval) {
+            read_write_counter -= read_interval;
 
             if (number_of_files == 2) {
                 // Check for not getting both reads
@@ -1038,8 +1043,8 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                 }
             }
         }
-        
         number_of_pairs++;
+        read_write_counter++;
     }
     
     if (cmd_line->write_progress_file) {
