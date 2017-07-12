@@ -201,6 +201,8 @@ void load_contamints(HashTable* contaminant_hash, KmerStats* stats, CmdLine* cmd
             
             stats->contaminant_kmers[stats->n_contaminants] = load_kmer_library(filename, stats->n_contaminants, cmdline->kmer_size, contaminant_hash);
             
+            hash_table_print_stats(contaminant_hash);
+            
             stats->n_contaminants++;
             con = strtok(NULL, ",");
         }
