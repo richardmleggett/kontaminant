@@ -414,7 +414,9 @@ int main(int argc, char* argv[])
     
     printf("\nkONTAMINANT v%s\n\n", VERSION);
     
-    printf("Max contaminants: %d\n\n", MAX_CONTAMINANTS);
+    printf("Max contaminants: %d\n", MAX_CONTAMINANTS);
+    printf("Element size: %d bytes\n", sizeof(Element));
+    printf("Kmer bitfields: %d (%d bytes)\n\n", NUMBER_OF_BITFIELDS_IN_BINARY_KMER, NUMBER_OF_BITFIELDS_IN_BINARY_KMER*8);
     
     initialise_cmdline(&cmdline);
     parse_command_line(argc, argv, &cmdline);
