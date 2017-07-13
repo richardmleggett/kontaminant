@@ -161,6 +161,9 @@ void load_contamints_from_file(HashTable* contaminant_hash, KmerStats* stats, Cm
                 stats->contaminant_kmers[stats->n_contaminants] = load_kmer_library(filename, stats->n_contaminants, cmdline->kmer_size, contaminant_hash);
                 
                 stats->n_contaminants++;
+                
+                hash_table_print_stats(contaminant_hash);
+                fflush(stdout);
             }
         }
     }
@@ -200,8 +203,6 @@ void load_contamints(HashTable* contaminant_hash, KmerStats* stats, CmdLine* cmd
             }
             
             stats->contaminant_kmers[stats->n_contaminants] = load_kmer_library(filename, stats->n_contaminants, cmdline->kmer_size, contaminant_hash);
-            
-            hash_table_print_stats(contaminant_hash);
             
             stats->n_contaminants++;
             con = strtok(NULL, ",");
@@ -417,7 +418,7 @@ int main(int argc, char* argv[])
     printf("\nkONTAMINANT v%s\n\n", VERSION);
     
     printf("Max contaminants: %d\n", MAX_CONTAMINANTS);
-    printf("Element size: %d bytes\n", sizeof(Element));
+    printf("Element size: %ld bytes\n", sizeof(Element));
     printf("Kmer bitfields: %d (%d bytes)\n\n", NUMBER_OF_BITFIELDS_IN_BINARY_KMER, NUMBER_OF_BITFIELDS_IN_BINARY_KMER*8);
     
     initialise_cmdline(&cmdline);
