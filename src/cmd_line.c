@@ -51,7 +51,7 @@ void initialise_cmdline(CmdLine* c)
     c->quality_score_offset = 33;
     c->quality_score_threshold = 0;
     c->format = FASTQ;
-    c->max_read_length = 100000;
+    c->max_read_length = 200000;
     c->kmer_threshold_overall = 10;
     c->kmer_threshold_read = 1;
     c->output_prefix = malloc(8);

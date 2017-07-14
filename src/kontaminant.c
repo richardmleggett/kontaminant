@@ -280,7 +280,7 @@ void filter_or_screen(char* filename_1, char* filename_2, HashTable* contaminant
             fra[i]->input_filename = filenames[i];
             fra[i]->quality_cut_off = 0;
             fra[i]->insert = false;
-            fra[i]->max_read_length = 100000;
+            fra[i]->max_read_length = 200000;
             fra[i]->maximum_ocupancy = 75;
             fra[i]->KmerHash = contaminant_hash;
         
