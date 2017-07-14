@@ -33,14 +33,14 @@ void load_reads_into_table(CmdLine* cmd_line,  HashTable* kmer_hash)
     KmerFileReaderWrapperArgs fria;
     fria.format = cmd_line->format;
     fria.kmer_size = kmer_hash->kmer_size;
-    fria.max_read_length = 1000;
+    fria.max_read_length = 100000;
     fria.new_entry = true;
     fria.full_entry = false;
 
     fra.input_filename = cmd_line -> input_filename_one;
     fra.quality_cut_off = cmd_line->quality_score_threshold;
     fra.insert = true;
-    fra.max_read_length = 1000;
+    fra.max_read_length = 100000;
     fra.maximum_ocupancy = 75;
     fra.KmerHash = kmer_hash;
     long long loaded_kmers = 0;
