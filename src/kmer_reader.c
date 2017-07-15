@@ -977,7 +977,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                     fra[i]->bad_reads++;
                 } else {
                     int index_first = -1;
-                    int index_second = -1;
+                    //int index_second = -1;
                     int count_first = 0;
                     int count_second = 0;
                     
@@ -992,13 +992,13 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                             fprintf(fp_read_summary, "\t%d", counts[i].kmers_from_contaminant[j]);
                             if (counts[i].kmers_from_contaminant[j] > count_first) {
                                 count_second = count_first;
-                                index_second = index_first;
+                                //index_second = index_first;
                                 count_first = counts[i].kmers_from_contaminant[j];
                                 index_first = j;
                             }
                             if (counts[i].kmers_from_contaminant[j] > count_second) {
                                 count_second = counts[i].kmers_from_contaminant[j];
-                                index_second = j;
+                                //index_second = j;
                             }
                         }
                         fprintf(fp_read_summary, "\t%d", index_first);
