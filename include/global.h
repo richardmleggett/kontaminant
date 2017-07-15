@@ -39,6 +39,8 @@ typedef signed char boolean;
 
 #define NUMBER_OF_COLOURS 1
 
+#define MAX_LINE_LENGTH 500000
+
 typedef enum{
   forward = 0,
   reverse = 1,

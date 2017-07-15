@@ -94,7 +94,7 @@ int read_sequence_from_fasta(FILE * fp, Sequence * seq, int max_chunk_length,
                              boolean new_entry, boolean * full_entry, int offset)
 {
     
-	char line[LINE_MAX];	// LINE_MAX is defined in limits.h
+	char line[MAX_LINE_LENGTH];	// LINE_MAX is defined in limits.h
 	int i;
 	int j = 0;		// length of sequence
 	boolean good_read;
@@ -132,14 +132,14 @@ int read_sequence_from_fasta(FILE * fp, Sequence * seq, int max_chunk_length,
 	// get name
     boolean name_set = false;
 	if (new_entry == true) {	// need a '>' followed by a name
-		while (name_set == false && fgets(line, LINE_MAX, fp) != NULL) {
+		while (name_set == false && fgets(line, MAX_LINE_LENGTH, fp) != NULL) {
             
             if(line[0] == '#'){
                 
                 //A comment, we ignore it. 
             }else if (line[0] == '>') {
 				i = 1;
-				while (i < LINE_MAX
+				while (i < MAX_LINE_LENGTH
 				       && !(line[i] == '\n' || line[i] == ' '
                             || line[i] == '\t'
                             || line[i] == '\r')) {
@@ -179,7 +179,7 @@ int read_sequence_from_fasta(FILE * fp, Sequence * seq, int max_chunk_length,
         
 		file_pointer = ftell(fp);
         
-		if (fgets(line, LINE_MAX, fp) != NULL) {
+		if (fgets(line, MAX_LINE_LENGTH, fp) != NULL) {
             
 			size_t length = strlen(line);
             
@@ -262,7 +262,7 @@ int read_sequence_from_fasta(FILE * fp, Sequence * seq, int max_chunk_length,
  */
 static int read_sequence_from_fastq_from_stream(FILE * fp, Sequence * seq, int max_read_length)
 {
-	char line[LINE_MAX];	// LINE_MAX is defined in limits.h
+	char line[MAX_LINE_LENGTH];	// LINE_MAX is defined in limits.h
 	int i;
 	int j = 0;		// length of sequence
 	int q = 0;		// length of qualities
@@ -281,7 +281,7 @@ static int read_sequence_from_fastq_from_stream(FILE * fp, Sequence * seq, int m
     char * readed;
     
     //Read the name
-    readed = fgets(line, LINE_MAX, fp);
+    readed = fgets(line, MAX_LINE_LENGTH, fp);
     if (readed == NULL) {
         return 0;
     }
@@ -291,12 +291,12 @@ static int read_sequence_from_fastq_from_stream(FILE * fp, Sequence * seq, int m
         assert(0);
     }
     
-    for (i = 1; i < LINE_MAX; i++) {
+    for (i = 1; i < MAX_LINE_LENGTH; i++) {
         if (line[i] == '\n' || line[i] == '\t' || line[i] == '\r') {
             break;
         }
         
-        if (i > LINE_MAX) {
+        if (i > MAX_LINE_LENGTH) {
             fputs("Name too long\n", stderr);
             exit(1);
         }
@@ -309,14 +309,14 @@ static int read_sequence_from_fastq_from_stream(FILE * fp, Sequence * seq, int m
     seq->id_string = seq->name;
     
     //Read the sequence
-    readed = fgets(line, LINE_MAX, fp);
+    readed = fgets(line, MAX_LINE_LENGTH, fp);
     if (readed == NULL) {
         sequence_clean(seq);
         return 0;
     }
     
     j=0;
-    for (i = 0; i < LINE_MAX; i++) {
+    for (i = 0; i < MAX_LINE_LENGTH; i++) {
         if (line[i] == '\n' || line[i] == ' ' || line[i] == '\t' || line[i] == '\r') {
             break;	// fine but nothing to add
         }
@@ -341,21 +341,21 @@ static int read_sequence_from_fastq_from_stream(FILE * fp, Sequence * seq, int m
     }
     
     //Line with the name for quality
-    readed = fgets(line, LINE_MAX, fp);
+    readed = fgets(line, MAX_LINE_LENGTH, fp);
     if (readed == NULL) {
         sequence_clean(seq);
         return 0;
     }
     
     //Line with the qualities
-    readed = fgets(line, LINE_MAX, fp);
+    readed = fgets(line, MAX_LINE_LENGTH, fp);
     if (readed == NULL) {
         sequence_clean(seq);
         return 0;
     }
     
     q=0;
-    for (i = 0; i < LINE_MAX; i++) {
+    for (i = 0; i < MAX_LINE_LENGTH; i++) {
         if (line[i] == '\n' || line[i] == ' ' || line[i] == '\t' || line[i] == '\r') {
             break;	// fine but nothing to add
         }
@@ -401,7 +401,7 @@ static int read_sequence_from_fastq_from_stream(FILE * fp, Sequence * seq, int m
 
 static int read_sequence_from_fastq_from_file(FILE * fp, Sequence * seq, int max_read_length)
 {
-	char line[LINE_MAX];	// LINE_MAX is defined in limits.h
+	char line[MAX_LINE_LENGTH];	// LINE_MAX is defined in limits.h
 	int i;
 	int j = 0;		// length of sequence
 	int q = 0;		// length of qualities
@@ -448,7 +448,7 @@ static int read_sequence_from_fastq_from_file(FILE * fp, Sequence * seq, int max
 		j = 0;
         
 		// read name of fastq entry
-		if (fgets(line, LINE_MAX, fp) != NULL) {
+		if (fgets(line, MAX_LINE_LENGTH, fp) != NULL) {
 			if (line[0] == '@') {
                 if (strlen(line) < seq->max_name_length) {
                     strcpy(seq->id_string, line);
@@ -457,11 +457,11 @@ static int read_sequence_from_fastq_from_file(FILE * fp, Sequence * seq, int max
                     exit(1);
                 }
                 
-				for (i = 1; i < LINE_MAX; i++) {
+				for (i = 1; i < MAX_LINE_LENGTH; i++) {
 					if (line[i] == '\n' || line[i] == '\t' || line[i] == '\r') {
 						break;
 					}
-					if (i > LINE_MAX) {
+					if (i > MAX_LINE_LENGTH) {
 						fputs("Name too long\n", stderr);
 						exit(1);
 					}
@@ -472,12 +472,12 @@ static int read_sequence_from_fastq_from_file(FILE * fp, Sequence * seq, int max
                 
 				// read sequence 
                 
-				while (fgets(line, LINE_MAX, fp) != NULL) {
+				while (fgets(line, MAX_LINE_LENGTH, fp) != NULL) {
 					if ((line[0] == '+') || (line[0] == '-')) {	// go to get qualities
 						break;
 					}
 					// check line is fine
-					for (i = 0; i < LINE_MAX; i++) {
+					for (i = 0; i < MAX_LINE_LENGTH; i++) {
 						if (line[i] == '\n' || line[i] == ' ' || line[i] == '\t' || line[i] == '\r') {
 							break;	// fine but nothing to add
 						}
@@ -505,13 +505,13 @@ static int read_sequence_from_fastq_from_file(FILE * fp, Sequence * seq, int max
 				// read qualities -- verify position first
 				file_pointer = ftell(fp);
                 
-				while (fgets(line, LINE_MAX, fp) != NULL) {
+				while (fgets(line, MAX_LINE_LENGTH, fp) != NULL) {
 					if (line[0] == '@' && j > 0 && (j <= q)) {	// then we have gone on to the next read allowing q>j in case where qualities longer than j
 						fseek(fp, file_pointer, SEEK_SET);
 						break;	// goto next read
 					}
                     
-					for (i = 0; i < LINE_MAX; i++) {
+					for (i = 0; i < MAX_LINE_LENGTH; i++) {
 						if (line[i] == '\n' || line[i] == ' ' || line[i] == '\t'|| line[i] == '\r') {
 							break;	// fine but nothing to add
 						}
@@ -605,7 +605,7 @@ int read_sequence_from_fastq(FILE * fp, Sequence * seq, int max_read_length){
 int read_sequence_from_fasta_and_qual(FILE * fp, FILE * fq, Sequence * seq, int max_read_length)
 {
     
-	char line[LINE_MAX];	// LINE_MAX is defined in limits.h
+	char line[MAX_LINE_LENGTH];	// LINE_MAX is defined in limits.h
 	int i;
 	int j = 0;		// length of sequence
 	int q = 0;		// length of qualities
@@ -668,15 +668,15 @@ int read_sequence_from_fasta_and_qual(FILE * fp, FILE * fq, Sequence * seq, int 
 		j = 0;
 		//file_pointer = ftell(fp);
 		// read name of fastq entry
-		if (fgets(line, LINE_MAX, fp) != NULL) {
+		if (fgets(line, MAX_LINE_LENGTH, fp) != NULL) {
 			if (line[0] == '>') {
-				for (i = 1; i < LINE_MAX; i++) {
+				for (i = 1; i < MAX_LINE_LENGTH; i++) {
 					if (line[i] == '\n' || line[i] == ' '
 					    || line[i] == '\t'
 					    || line[i] == '\r') {
 						break;
 					}
-					if (i > LINE_MAX) {
+					if (i > MAX_LINE_LENGTH) {
 						fputs("Name too long\n",
 						      stderr);
 						exit(1);
@@ -686,12 +686,12 @@ int read_sequence_from_fasta_and_qual(FILE * fp, FILE * fq, Sequence * seq, int 
 				seq->name[i - 1] = '\0';
 				
 				// read sequence 
-				while (fgets(line, LINE_MAX, fp) != NULL) {
+				while (fgets(line, MAX_LINE_LENGTH, fp) != NULL) {
 					if (line[0] == '>') {	// go to get qualities
 						break;
 					}
 					// check line is fine
-					for (i = 0; i < LINE_MAX; i++) {
+					for (i = 0; i < MAX_LINE_LENGTH; i++) {
 						if (line[i] == '\n'
 						    || line[i] == ' '
 						    || line[i] == '\t'
@@ -718,7 +718,7 @@ int read_sequence_from_fasta_and_qual(FILE * fp, FILE * fq, Sequence * seq, int 
 				}
 				// read qualities -- verify position first
 				//file_pointer = ftell(fq);
-				while (fgets(line, LINE_MAX, fq) != NULL) {
+				while (fgets(line, MAX_LINE_LENGTH, fq) != NULL) {
                     
 					if (line[0] == '>' )	// then we have
 						// gone on to the
@@ -726,7 +726,7 @@ int read_sequence_from_fasta_and_qual(FILE * fp, FILE * fq, Sequence * seq, int 
 						// allowing q>j in case where qualities longer
 						// than j
 					{
-						fgets(line, LINE_MAX, fq);
+						fgets(line, MAX_LINE_LENGTH, fq);
 						if(j <= q)
                             break;
 					}

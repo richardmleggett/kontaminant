@@ -976,6 +976,11 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                     // Bad read
                     fra[i]->bad_reads++;
                 } else {
+                    int index_first = -1;
+                    int index_second = -1;
+                    int count_first = 0;
+                    int count_second = 0;
+                    
                     // Load kmers
                     kmer_hash_load_sliding_windows(&previous_node, kmer_hash, true, fra[i], kmer_hash->kmer_size, windows[i], i, stats, &(counts[i]));
                     
@@ -985,7 +990,19 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                         fprintf(fp_read_summary, "\t%d", counts[i].kmers_loaded);
                         for (j=0; j<stats->n_contaminants; j++) {
                             fprintf(fp_read_summary, "\t%d", counts[i].kmers_from_contaminant[j]);
+                            if (counts[i].kmers_from_contaminant[j] > count_first) {
+                                count_second = count_first;
+                                index_second = index_first;
+                                count_first = counts[i].kmers_from_contaminant[j];
+                                index_first = j;
+                            }
+                            if (counts[i].kmers_from_contaminant[j] > count_second) {
+                                count_second = counts[i].kmers_from_contaminant[j];
+                                index_second = j;
+                            }
                         }
+                        fprintf(fp_read_summary, "\t%d", index_first);
+                        fprintf(fp_read_summary, "\t%.2f", ((double)count_second/(double)count_first));
                         fprintf(fp_read_summary, "\n");
                     }
                     
@@ -1139,7 +1156,7 @@ long long load_seq_into_kmers_hash(KmerFileReaderArgs* fra, KmerFileReaderWrappe
 		exit(1);
 	}
     fria->seq = seq;
-	alloc_sequence(seq, max_read_length, LINE_MAX, fastq_ascii_offset);
+	alloc_sequence(seq, max_read_length, MAX_LINE_LENGTH, fastq_ascii_offset);
     KmerSlidingWindowSet * windows = binary_kmer_sliding_window_set_new_from_read_length(kmer_size,max_read_length);
     
     // Read file
