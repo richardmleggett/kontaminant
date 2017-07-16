@@ -978,8 +978,8 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                 } else {
                     int index_first = -1;
                     //int index_second = -1;
-                    int count_first = 0;
-                    int count_second = 0;
+                    int count_first = -1;
+                    int count_second = -1;
                     
                     // Load kmers
                     kmer_hash_load_sliding_windows(&previous_node, kmer_hash, true, fra[i], kmer_hash->kmer_size, windows[i], i, stats, &(counts[i]));
@@ -996,12 +996,13 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                                 count_first = counts[i].kmers_from_contaminant[j];
                                 index_first = j;
                             }
-                            if (counts[i].kmers_from_contaminant[j] > count_second) {
+                            else if (counts[i].kmers_from_contaminant[j] > count_second) {
                                 count_second = counts[i].kmers_from_contaminant[j];
                                 //index_second = j;
                             }
                         }
                         fprintf(fp_read_summary, "\t%d", index_first);
+                        fprintf(fp_read_summary, "\t%d", count_first);
                         fprintf(fp_read_summary, "\t%.2f", ((double)count_second/(double)count_first));
                         fprintf(fp_read_summary, "\n");
                     }
