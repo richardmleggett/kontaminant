@@ -976,20 +976,21 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                     // Bad read
                     fra[i]->bad_reads++;
                 } else {
-                    int index_first = -1;
-                    //int index_second = -1;
-                    int count_first = -1;
-                    int count_second = -1;
-                    
                     // Load kmers
                     kmer_hash_load_sliding_windows(&previous_node, kmer_hash, true, fra[i], kmer_hash->kmer_size, windows[i], i, stats, &(counts[i]));
                     
                     if (fp_read_summary) {
+                        uint32_t index_first = 0;
+                        //uint32_t index_second = 0;
+                        uint32_t count_first = 0;
+                        uint32_t count_second = 0;
+
                         fprintf(fp_read_summary, "%s", frw[i]->seq->name);
                         fprintf(fp_read_summary, "\t%d", counts[i].contaminants_detected);
                         fprintf(fp_read_summary, "\t%d", counts[i].kmers_loaded);
                         for (j=0; j<stats->n_contaminants; j++) {
                             fprintf(fp_read_summary, "\t%d", counts[i].kmers_from_contaminant[j]);
+                            
                             if (counts[i].kmers_from_contaminant[j] > count_first) {
                                 count_second = count_first;
                                 //index_second = index_first;
