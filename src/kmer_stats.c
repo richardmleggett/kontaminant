@@ -44,12 +44,14 @@ void kmer_stats_read_counts_initialise(KmerStatsReadCounts *r)
         r->contaminant_kmers_seen[i] = 0;
         r->k1_contaminated_reads_by_contaminant[i] = 0;
         r->k1_unique_contaminated_reads_by_contaminant[i] = 0;
+        r->species_read_counts[i] = 0;
     }
     
     for (i=0; i<MAX_READ_LENGTH; i++) {
         r->contaminated_kmers_per_read[i] = 0;
     }
     
+    r->species_unclassified = 0;
 }
 
 /*----------------------------------------------------------------------*
@@ -601,6 +603,18 @@ void kmer_stats_calculate_read(KmerStats* stats, KmerStatsReadCounts* read)
         read->kn_contaminated_reads_by_contaminant_pc[i] = (100.0 * (double)read->kn_contaminated_reads_by_contaminant[i]) / (double)read->number_of_reads;
         read->kn_unique_contaminated_reads_by_contaminant_pc[i] = (100.0 * (double)read->kn_unique_contaminated_reads_by_contaminant[i]) / (double)read->number_of_reads;
         read->contaminant_kmers_seen_pc[i] = (100.0 * (double)read->contaminant_kmers_seen[i]) / (double)stats->contaminant_kmers[i];
+        
+        if (read->species_read_counts[i] > 0) {
+            read->species_read_counts_pc[i] = (100.0 * (double)read->species_read_counts[i] / read->number_of_reads);
+        } else {
+            read->species_read_counts_pc[i] = 0;
+        }
+        
+        if (read->species_unclassified > 0) {
+            read->species_unclassified_pc = (100.0 * (double)read->species_unclassified / read->number_of_reads);
+        } else {
+            read->species_unclassified = 0;
+        }
     }
 }
 
@@ -671,10 +685,10 @@ void kmer_stats_report_read_stats(KmerStats* stats, int r, CmdLine* cmd_line)
     
     printf("\nPer-contaminant statistics\n\n");
     
-    printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%%kFound", "ReadsW1k", "%%ReadsW1k", "UniqW1k", "%%UniqW1k", "ReadsWnk", "%%ReadsWnk", "UniqWnk", "%%UniqWnk");
+    printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\n", "Contaminant", "nKmers", "kFound", "%kFound", "ReadsW1k", "%ReadsW1k", "UniqW1k", "%UniqW1k", "ReadsWnk", "%ReadsWnk", "UniqWnk", "%UniqWnk", "Assigned", "%Assigned");
            
     for (i=0; i<stats->n_contaminants; i++) {
-        printf("%-30s %-10u %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f\n",
+        printf("%-30s %-10u %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f %-10u %-10.2f\n",
                stats->contaminant_ids[i],
                stats->contaminant_kmers[i],
                read->contaminant_kmers_seen[i],
@@ -686,9 +700,12 @@ void kmer_stats_report_read_stats(KmerStats* stats, int r, CmdLine* cmd_line)
                read->kn_contaminated_reads_by_contaminant[i],
                read->kn_contaminated_reads_by_contaminant_pc[i],
                read->kn_unique_contaminated_reads_by_contaminant[i],
-               read->kn_unique_contaminated_reads_by_contaminant_pc[i]);
+               read->kn_unique_contaminated_reads_by_contaminant_pc[i],
+               read->species_read_counts[i],
+               read->species_read_counts_pc[i]
+               );
     }
-    
+    printf("%-30s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10u %-10.2f\n", "Unclassified", "", "", "", "", "", "", "", "", "", "", "", read->species_unclassified, read->species_unclassified_pc);
 }
 
 /*----------------------------------------------------------------------*
@@ -767,6 +784,8 @@ void kmer_stats_report_to_screen(KmerStats* stats, CmdLine* cmd_line)
     printf("%%ReadsWnk - Percentage of reads containing n or more kmer from the contaminant (n=%d)\n", cmd_line->kmer_threshold_read);
     printf("UniqWnk   - Reads containing n or more kmer from the contaminant and not any other (n=%d)\n", cmd_line->kmer_threshold_read);
     printf("%%UniqWnk  - Percentage of reads containing n or more kmer from the contaminant and not any other (n=%d)\n", cmd_line->kmer_threshold_read);
+    printf("Assigned  - Reads assigned to this species\n");
+    printf("%%Assigned - Percentage of reads assigned to this species\n");
     
     if (stats->number_of_files == 2) {
         printf("\n========== Statistics for both reads ===========\n\n");

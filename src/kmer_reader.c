@@ -984,6 +984,8 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                         //uint32_t index_second = 0;
                         uint32_t count_first = 0;
                         uint32_t count_second = 0;
+                        uint32_t classified = 0;
+                        double ratio = 0.0;
 
                         fprintf(fp_read_summary, "%s", frw[i]->seq->name);
                         fprintf(fp_read_summary, "\t%d", counts[i].contaminants_detected);
@@ -1002,9 +1004,26 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                                 //index_second = j;
                             }
                         }
-                        fprintf(fp_read_summary, "\t%d", index_first);
+                        
+                        if (count_second > 0) {
+                            ratio = (double)count_second/(double)count_first;
+                        }
+                        
+                        if (count_first >= cmd_line->kmer_threshold_read) {
+                            if (ratio < 0.5) {
+                                classified = index_first + 1;
+                                stats->read[i]->species_read_counts[index_first]++;
+                            } else {
+                                stats->read[i]->species_unclassified++;
+                            }
+                        } else {
+                            stats->read[i]->species_unclassified++;
+                        }
+                        
                         fprintf(fp_read_summary, "\t%d", count_first);
-                        fprintf(fp_read_summary, "\t%.2f", ((double)count_second/(double)count_first));
+                        fprintf(fp_read_summary, "\t%d", count_second);
+                        fprintf(fp_read_summary, "\t%.2f", ratio);
+                        fprintf(fp_read_summary, "\t%d", classified);
                         fprintf(fp_read_summary, "\n");
                     }
                     

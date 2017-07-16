@@ -25,6 +25,12 @@ typedef struct {
     uint32_t reads_with_highest_contaminant[MAX_CONTAMINANTS];
     uint32_t reads_unclassified;
     
+    // Species classification classification
+    uint32_t species_read_counts[MAX_CONTAMINANTS];
+    double   species_read_counts_pc[MAX_CONTAMINANTS];
+    uint32_t species_unclassified;
+    double   species_unclassified_pc;
+    
     // Coverage histogram
     uint32_t contaminated_kmers_per_read[MAX_READ_LENGTH];
 

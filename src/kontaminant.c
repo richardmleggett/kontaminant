@@ -385,7 +385,7 @@ void initialise_output_files(CmdLine* cmdline, KmerStats* stats)
             for (i=0; i<stats->n_contaminants; i++) {
                 fprintf(fp, "\t%s", stats->contaminant_ids[i]);
             }
-            fprintf(fp, "\tHighest\tFirstRatio");
+            fprintf(fp, "\tFirstCount\tSecondCount\tRatio\tClassified");
             fprintf(fp, "\n");
             fclose(fp);
         } else {
