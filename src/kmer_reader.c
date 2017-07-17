@@ -1010,7 +1010,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                         }
                         
                         if (count_first >= cmd_line->kmer_threshold_read) {
-                            if (ratio < 0.5) {
+                            if (ratio <= cmd_line->ratio) {
                                 classified = index_first + 1;
                                 stats->read[i]->species_read_counts[index_first]++;
                             } else {

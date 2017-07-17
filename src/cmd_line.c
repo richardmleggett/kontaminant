@@ -62,6 +62,7 @@ void initialise_cmdline(CmdLine* c)
     c->read_summary_file = 0;
     c->filter_unique = false;
     c->numthreads = 1;
+    c->ratio = 1.0;
 }
 
 /*----------------------------------------------------------------------*
@@ -134,6 +135,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"numthreads", required_argument, NULL, 'N'},
         {"progress", required_argument, NULL, 'p'},
         {"removed_prefix", required_argument, NULL, 'r'},
+        {"ratio", required_argument, NULL, 'R'},
         {"screen", no_argument, NULL, 's'},
         {"threshold", required_argument, NULL, 't'},
         {"unique", no_argument, NULL, 'u'},
@@ -151,7 +153,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         exit(0);
     }
     
-    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hij:k:l:n:N:o:p:r:st:uw:xy:z:", long_options, &longopt_index)) > 0)
+    while ((opt = getopt_long(argc, argv, "1:2:b:c:d:e:fg:hij:k:l:n:N:o:p:r:R:st:uw:xy:z:", long_options, &longopt_index)) > 0)
     {
         switch(opt) {
             case '1':
@@ -347,6 +349,13 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
                     printf("Error: can't allocate memory for string.\n");
                     exit(1);
                 }
+                break;
+            case 'R':
+                if (optarg==NULL) {
+                    printf("Error: [-R | --ratio] option requires an argument.\n");
+                    exit(1);
+                }
+                c->ratio = atof(optarg);
                 break;
             case 's':
                 if (c->run_type == 0) {

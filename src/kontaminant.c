@@ -405,6 +405,7 @@ int main(int argc, char* argv[])
     HashTable* contaminant_hash = NULL;
     CmdLine cmdline;
     KmerStats kmer_stats;
+    int i = 0;
     
     //Element e;
     //int i;
@@ -417,6 +418,12 @@ int main(int argc, char* argv[])
     time(&start);
     
     printf("\nkONTAMINANT v%s\n\n", VERSION);
+    
+    printf("Command line:");
+    for (i = 0; i < argc; i++) {
+        printf(" %s", argv[i]);
+    }
+    printf("\n\n");
     
     printf("Max contaminants: %d\n", MAX_CONTAMINANTS);
     printf("Element size: %ld bytes\n", sizeof(Element));

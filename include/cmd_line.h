@@ -43,6 +43,7 @@ typedef struct {
     boolean filter_unique;
     char* read_summary_file;
     int numthreads;
+    double ratio;
 } CmdLine;
 
 void initialise_cmdline(CmdLine* c);
