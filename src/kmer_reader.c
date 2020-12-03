@@ -1067,7 +1067,7 @@ long long screen_or_filter_paired_end(CmdLine* cmd_line, KmerFileReaderArgs* fra
                         
                         if (fp_out) {
                             char temp_string[frw[i]->seq->length + 1];
-                            fprintf(fp_out, "%s%s\n+\n%s\n", frw[i]->seq->id_string, frw[i]->seq->seq, sequence_get_quality_string(frw[i]->seq, temp_string));
+                            fprintf(fp_out, "@%s\n%s\n+\n%s\n", frw[i]->seq->id_string, frw[i]->seq->seq, sequence_get_quality_string(frw[i]->seq, temp_string));
                         }
                     }
                 }
@@ -1211,6 +1211,7 @@ long long load_seq_into_kmers_hash(KmerFileReaderArgs* fra, KmerFileReaderWrappe
         
         if (seq_count % 10000) {
             if (hash_table_percentage_occupied(kmer_hash) > fra->maximum_ocupancy) {
+                fprintf(stderr, "WARNING: Maximum occupancy reached (%f)\n", hash_table_percentage_occupied(kmer_hash));
                 keep_reading = false;
             }
         }
