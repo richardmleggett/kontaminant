@@ -133,6 +133,7 @@ void parse_command_line(int argc, char* argv[], CmdLine* c)
         {"mem_height", required_argument, NULL, 'n'},
         {"mem_height", required_argument, NULL, 'n'},
         {"numthreads", required_argument, NULL, 'N'},
+        {"output_prefix", required_argument, NULL, 'o'},
         {"progress", required_argument, NULL, 'p'},
         {"removed_prefix", required_argument, NULL, 'r'},
         {"ratio", required_argument, NULL, 'R'},
